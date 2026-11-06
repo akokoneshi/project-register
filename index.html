@@ -1,4 +1,8 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0e2f52">
 <title>Project Register</title>
 <style>
 /* Layout: one working column — header with location counts, a filter bar, then the register table (cards on phones). */
@@ -24,6 +28,9 @@
   --f-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
+#listView { display: flex; flex-direction: column; gap: 20px; }
+.grid > .wide { grid-column: 1 / -1; }
 body {
   background: #0e2f52 linear-gradient(180deg, #0e2f52 0%, #163d66 100%) fixed; color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
@@ -118,14 +125,34 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
   td { padding: 0; border: 0; }
   td.c-job { grid-column: 1; }
   td.c-loc { grid-column: 2; grid-row: 1; text-align: right; }
-  td.c-name, td.c-cust, td.c-status { grid-column: 1 / -1; }
-  td.c-pm, td.c-ap { grid-column: 1 / -1; font-size: 14px; }
-  td.c-pm::before, td.c-ap::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: 4px; }
+  td.c-name, td.c-cust, td.c-status, td.c-contacts { grid-column: 1 / -1; }
   td.c-cust { color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
-</style>
 
+/* Detail (read-only) page + contacts */
+.detail-top { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+.detail-head h2 { font-size: 26px; margin: 0 0 6px; }
+.detail-head .job { font-size: 15px; color: var(--kim-blue-dark); }
+.meta { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px 20px; margin: 18px 0 0; }
+.kv dt { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); margin: 0 0 2px; }
+.kv dd { margin: 0; overflow-wrap: anywhere; }
+.sec-title { display: flex; justify-content: space-between; align-items: center; margin: 24px 0 8px; font-weight: 700; font-size: 16px; }
+.clist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.clist li { display: grid; grid-template-columns: 1.2fr 1fr 1.6fr 1fr; gap: 4px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: center; }
+.clist li:last-child { border-bottom: 0; }
+.chip.type { color: var(--kim-blue-dark); background: var(--kim-blue-tint); justify-self: start; }
+.fine { font-size: 12px; color: var(--muted); margin: 18px 0 0; }
+.crow { display: grid; grid-template-columns: 1fr 1fr 1.3fr 1fr auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); margin-bottom: 10px; }
+.clines { display: block; }
+.clines div + div { margin-top: 2px; }
+.clines small { color: var(--muted); }
+@media (max-width: 760px) { .crow { grid-template-columns: 1fr 1fr; } .crow .rm { grid-column: 1 / -1; } }
+@media (max-width: 640px) { .clist li { grid-template-columns: 1fr; padding: 12px 14px; } }
+
+</style>
+</head><body>
 <form id="gate" class="panel" style="max-width:420px;margin:12vh auto" hidden>
   <img src="assets/kim-logo.png" alt="Kim Industries" style="height:40px;width:auto;margin:0 0 10px">
   <h2>Project Register</h2>
@@ -136,6 +163,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
   </div>
   <div class="actions"><button id="signInBtn" class="btn primary" type="submit">Sign in</button></div>
 </form>
+
 <div class="wrap" id="app" hidden>
   <header>
     <div>
@@ -150,19 +178,38 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
     </div>
   </header>
 
-  <div class="bar">
-    <div class="seg" role="group" aria-label="Filter by location" id="locSeg">
-      <button type="button" data-loc="all" aria-pressed="true">All</button>
-      <button type="button" data-loc="CT" aria-pressed="false">Connecticut</button>
-      <button type="button" data-loc="WC" aria-pressed="false">Hudson Valley</button>
+  <section id="listView">
+    <div class="bar">
+      <div class="seg" role="group" aria-label="Filter by location" id="locSeg">
+        <button type="button" data-loc="all" aria-pressed="true">All</button>
+        <button type="button" data-loc="CT" aria-pressed="false">Connecticut</button>
+        <button type="button" data-loc="WC" aria-pressed="false">Hudson Valley</button>
+      </div>
+      <select id="statusFilter" class="btn" aria-label="Filter by status">
+        <option value="">Any status</option>
+        <option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option>
+      </select>
+      <input id="q" class="search" type="search" placeholder="Search job #, project, customer, contact…" aria-label="Search projects">
+      <button id="addBtn" class="btn primary" type="button">+ Add project</button>
     </div>
-    <select id="statusFilter" class="btn" aria-label="Filter by status">
-      <option value="">Any status</option>
-      <option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option>
-    </select>
-    <input id="q" class="search" type="search" placeholder="Search job #, project, customer, contact…" aria-label="Search projects">
-    <button id="addBtn" class="btn primary" type="button">+ Add project</button>
-  </div>
+    <div class="tablebox">
+      <table>
+        <thead><tr>
+          <th data-k="job"><button type="button">Job #<span class="arrow">↕</span></button></th>
+          <th data-k="name"><button type="button">Project<span class="arrow">↕</span></button></th>
+          <th data-k="customer"><button type="button">Customer<span class="arrow">↕</span></button></th>
+          <th data-k="contacts"><button type="button">Contacts<span class="arrow">↕</span></button></th>
+          <th data-k="location"><button type="button">Location<span class="arrow">↕</span></button></th>
+          <th data-k="status"><button type="button">Status<span class="arrow">↕</span></button></th>
+        </tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      <div class="empty" id="empty"><strong>Loading projects…</strong>Your saved projects will appear here.</div>
+    </div>
+    <p class="notice" id="notice"><button id="signOutBtn" class="btn" type="button" style="padding:2px 10px;margin-right:8px">Sign out</button>Tap any project to view it. Everyone with a Materials login sees the same register.</p>
+  </section>
+
+  <section id="detail" class="panel" hidden></section>
 
   <form id="form" class="panel" hidden novalidate>
     <h2 id="formTitle">New project</h2>
@@ -175,11 +222,9 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
       <div class="field"><label for="f-town">Town / site</label><input id="f-town" autocomplete="off" placeholder="Optional"></div>
       <div class="field"><label for="f-status">Status</label>
         <select id="f-status"><option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option></select></div>
-      <div class="sub wide"><span>Customer contacts</span><small id="autofillNote" hidden>Filled in from this customer's last project. Change them if this job is different.</small></div>
-      <div class="field"><label for="f-pmName">Customer PM · name</label><input id="f-pmName" autocomplete="off"></div>
-      <div class="field"><label for="f-pmEmail">Customer PM · email</label><input id="f-pmEmail" type="email" autocomplete="off" placeholder="name@company.com"></div>
-      <div class="field"><label for="f-apName">Customer AP · name</label><input id="f-apName" autocomplete="off"></div>
-      <div class="field"><label for="f-apEmail">Customer AP · email</label><input id="f-apEmail" type="email" autocomplete="off" placeholder="ap@company.com"></div>
+      <div class="sub wide"><span>Contacts</span><small>Add at least one contact and choose what kind of contact they are.</small></div>
+      <div class="wide" id="contactRows"></div>
+      <div class="wide"><button type="button" id="addContactBtn" class="btn">+ Add another contact</button> <small id="autofillNote" class="notice" style="color:var(--muted)" hidden>Contacts copied from this customer's last project. Change them if this job is different.</small></div>
       <div class="field wide"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Optional"></textarea></div>
     </div>
     <datalist id="custList"></datalist>
@@ -191,244 +236,9 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
       <button type="submit" id="saveBtn" class="btn primary">Save project</button>
     </div>
   </form>
-
-  <div class="tablebox">
-    <table>
-      <thead><tr>
-        <th data-k="job"><button type="button">Job #<span class="arrow">↕</span></button></th>
-        <th data-k="name"><button type="button">Project<span class="arrow">↕</span></button></th>
-        <th data-k="customer"><button type="button">Customer<span class="arrow">↕</span></button></th>
-        <th data-k="pmName"><button type="button">Customer PM<span class="arrow">↕</span></button></th>
-        <th data-k="apName"><button type="button">Customer AP<span class="arrow">↕</span></button></th>
-        <th data-k="location"><button type="button">Location<span class="arrow">↕</span></button></th>
-        <th data-k="status"><button type="button">Status<span class="arrow">↕</span></button></th>
-      </tr></thead>
-      <tbody id="rows"></tbody>
-    </table>
-    <div class="empty" id="empty"><strong>Loading your projects…</strong>Your saved projects will appear here.</div>
-  </div>
-  <p class="notice" id="notice"><button id="signOutBtn" class="btn" type="button" style="padding:2px 10px;margin-right:8px">Sign out</button>Tap any project to edit it. Changes save automatically for everyone signed in.</p>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
-<script>
-(async function () {
-  const LOC = { CT: "Connecticut", WC: "Hudson Valley, NY" };
-  const $ = (id) => document.getElementById(id);
-  let projects = [];
-  let loaded = false;
-  let db = null, col = null, canWrite = true;
-  let editingId = null;
-  const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
-
-  try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
-  function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
-
-  function contactCell(td, label, name, email) {
-    td.dataset.label = label; td.className += " contact";
-    if (!name && !email) { td.textContent = "—"; return; }
-    if (name) { const n = document.createElement("span"); n.className = "cname"; n.textContent = name; td.appendChild(n); }
-    if (email) {
-      const m = document.createElement("span"); m.className = "cmail";
-      const t = document.createElement("span"); t.textContent = email; m.appendChild(t);
-      const b = document.createElement("button"); b.type = "button"; b.className = "copy"; b.textContent = "Copy"; b.dataset.email = email; b.setAttribute("aria-label", "Copy " + email);
-      m.appendChild(b); td.appendChild(m);
-    }
-  }
-
-  function render() {
-    $("n-all").textContent = loaded ? projects.length : "–";
-    $("n-ct").textContent = loaded ? projects.filter(p => p.location === "CT").length : "–";
-    $("n-wc").textContent = loaded ? projects.filter(p => p.location === "WC").length : "–";
-
-    document.querySelectorAll("#locSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.loc === view.loc)));
-    $("statusFilter").value = view.status;
-    if ($("q").value !== view.q) $("q").value = view.q;
-    document.querySelectorAll("th").forEach(th => {
-      const on = th.dataset.k === view.sortK;
-      th.setAttribute("aria-sort", on ? (view.sortDir > 0 ? "ascending" : "descending") : "none");
-      th.querySelector(".arrow").textContent = on ? (view.sortDir > 0 ? "↑" : "↓") : "↕";
-    });
-
-    const q = view.q.trim().toLowerCase();
-    const list = projects.filter(p =>
-      (view.loc === "all" || p.location === view.loc) &&
-      (!view.status || p.status === view.status) &&
-      (!q || [p.job, p.name, p.customer, p.pmName, p.pmEmail, p.apName, p.apEmail, p.town, p.notes].join(" ").toLowerCase().includes(q))
-    ).sort((a, b) => {
-      const k = view.sortK;
-      const av = k === "location" ? LOC[a.location] : (a[k] || "");
-      const bv = k === "location" ? LOC[b.location] : (b[k] || "");
-      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * view.sortDir;
-    });
-
-    const tb = $("rows");
-    tb.textContent = "";
-    for (const p of list) {
-      const tr = document.createElement("tr");
-      tr.tabIndex = 0;
-      tr.dataset.id = p.id;
-      const cell = (cls) => { const td = document.createElement("td"); td.className = cls; tr.appendChild(td); return td; };
-      const j = cell("c-job"); const js = document.createElement("span"); js.className = "job"; js.textContent = p.job || "—"; j.appendChild(js);
-      if (p.example) { const e = document.createElement("span"); e.className = "ex"; e.textContent = "example"; j.appendChild(e); }
-      const n = cell("c-name"); const ns = document.createElement("span"); ns.className = "pname"; ns.textContent = p.name || "Untitled"; n.appendChild(ns);
-      if (p.town) { const t = document.createElement("span"); t.className = "note"; t.textContent = p.town; n.appendChild(t); }
-      cell("c-cust").textContent = p.customer || "—";
-      contactCell(cell("c-pm"), "PM", p.pmName, p.pmEmail);
-      contactCell(cell("c-ap"), "AP", p.apName, p.apEmail);
-      const l = cell("c-loc"); const ls = document.createElement("span"); ls.className = "chip " + (p.location === "WC" ? "wc" : "ct"); ls.textContent = LOC[p.location] || "—"; l.appendChild(ls);
-      const s = cell("c-status"); const ss = document.createElement("span"); ss.className = "status " + (p.status || ""); ss.dataset.s = p.status || ""; ss.textContent = p.status || "—"; s.appendChild(ss);
-      tb.appendChild(tr);
-    }
-
-    const empty = $("empty");
-    if (!loaded) { empty.hidden = false; }
-    else if (!projects.length) { empty.hidden = false; empty.innerHTML = "<strong>No projects yet</strong>Use “+ Add project” to enter your first job."; }
-    else if (!list.length) { empty.hidden = false; empty.innerHTML = "<strong>No matches</strong>Try another location, status or search."; }
-    else empty.hidden = true;
-
-    const uniq = k => [...new Set(projects.map(p => p[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-    const fillList = (id, k) => { const dl = $(id); dl.textContent = ""; uniq(k).forEach(v => { const o = document.createElement("option"); o.value = v; dl.appendChild(o); }); };
-    fillList("custList", "customer");
-  }
-
-  // Filters & sorting
-  $("locSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; view.loc = b.dataset.loc; saveView(); render(); });
-  $("statusFilter").addEventListener("change", e => { view.status = e.target.value; saveView(); render(); });
-  $("rows").addEventListener("click", e => {
-    const b = e.target.closest(".copy"); if (!b) return;
-    e.stopPropagation();
-    const done = () => { b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1500); };
-    const fallback = () => { const r = document.createRange(); r.selectNodeContents(b.previousElementSibling); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); b.textContent = "Selected"; setTimeout(() => { b.textContent = "Copy"; }, 1500); };
-    try { navigator.clipboard.writeText(b.dataset.email).then(done, fallback); } catch (err) { fallback(); }
-  }, true);
-  $("q").addEventListener("input", e => { view.q = e.target.value; render(); });
-  document.querySelectorAll("th button").forEach(b => b.addEventListener("click", () => {
-    const k = b.parentElement.dataset.k;
-    if (view.sortK === k) view.sortDir *= -1; else { view.sortK = k; view.sortDir = 1; }
-    saveView(); render();
-  }));
-
-  // Form
-  const F = { job: "f-job", name: "f-name", customer: "f-cust", pmName: "f-pmName", pmEmail: "f-pmEmail", apName: "f-apName", apEmail: "f-apEmail", location: "f-loc", town: "f-town", status: "f-status", notes: "f-notes" };
-  function openForm(p) {
-    editingId = p ? p.id : null;
-    $("formTitle").textContent = p ? "Edit project" : "New project";
-    for (const k in F) $(F[k]).value = p ? (p[k] || "") : (k === "location" ? (view.loc === "WC" ? "WC" : "CT") : k === "status" ? "Active" : "");
-    $("delBtn").hidden = !p; disarm();
-    $("formErr").hidden = true;
-    $("autofillNote").hidden = true;
-    $("form").hidden = false;
-    $("f-job").focus();
-    $("form").scrollIntoView({ block: "nearest" });
-  }
-  function closeForm() { $("form").hidden = true; editingId = null; }
-  function showErr(msg) { $("formErr").textContent = msg; $("formErr").hidden = false; }
-
-  const CONTACT_KEYS = ["pmName", "pmEmail", "apName", "apEmail"];
-  $("f-cust").addEventListener("change", () => {
-    const c = $("f-cust").value.trim().toLowerCase(); if (!c) return;
-    const prev = projects.filter(p => p.id !== editingId && (p.customer || "").toLowerCase() === c)
-      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
-    if (!prev) return;
-    let filled = false;
-    CONTACT_KEYS.forEach(k => { const el = $(F[k]); if (!el.value.trim() && prev[k]) { el.value = prev[k]; filled = true; } });
-    $("autofillNote").hidden = !filled;
-  });
-
-  $("addBtn").addEventListener("click", () => openForm(null));
-  $("cancelBtn").addEventListener("click", closeForm);
-  $("rows").addEventListener("click", e => { const tr = e.target.closest("tr"); if (tr) openForm(projects.find(p => p.id === tr.dataset.id)); });
-  $("rows").addEventListener("keydown", e => { if (e.key === "Enter") { const tr = e.target.closest("tr"); if (tr) openForm(projects.find(p => p.id === tr.dataset.id)); } });
-
-  $("form").addEventListener("submit", async e => {
-    e.preventDefault();
-    const data = {};
-    for (const k in F) data[k] = $(F[k]).value.trim();
-    if (!data.job || !data.name || !data.customer) { showErr("Job number, project name and customer are required."); return; }
-    const badMail = ["pmEmail", "apEmail"].find(k => data[k] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[k]));
-    if (badMail) { showErr((badMail === "pmEmail" ? "Customer PM" : "Customer AP") + " email doesn't look right. Check it and try again."); return; }
-    const dup = projects.find(p => p.job.toLowerCase() === data.job.toLowerCase() && p.id !== editingId);
-    if (dup) { showErr("Job " + data.job + " is already used by “" + dup.name + "”."); return; }
-    if (!col) { showErr("Saving isn't available right now. Reload the page and try again."); return; }
-    data.updatedAt = new Date().toISOString();
-    data.example = false;
-    $("saveBtn").disabled = true;
-    try {
-      if (editingId) await col.doc(editingId).set(data);
-      else await col.add(data);
-      closeForm();
-    } catch (err) {
-      showErr("Couldn't save. You may not have permission, or check your connection and try again.");
-    } finally { $("saveBtn").disabled = false; }
-  });
-
-  let armTimer = null;
-  function disarm() { const b = $("delBtn"); b.classList.remove("armed"); b.textContent = "Delete"; clearTimeout(armTimer); }
-  $("delBtn").addEventListener("click", async () => {
-    const b = $("delBtn");
-    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Confirm delete"; armTimer = setTimeout(disarm, 4000); return; }
-    disarm();
-    try { await col.doc(editingId).delete(); closeForm(); }
-    catch (err) { showErr("Couldn't delete this project. Try again."); }
-  });
-
-  render();
-
-  // Data (Supabase Auth + table public.project_register: id, data jsonb, updated_at)
-  const cfg = window.APP_CONFIG || {};
-  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
-    $("gate").hidden = false;
-    $("gateMsg").textContent = "Not configured: fill in config.js.";
-    $("signInBtn").disabled = true;
-    return;
-  }
-  const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { storageKey: "project-register-auth" } });
-  const T = "project_register";
-  col = {
-    add: async (data) => { const r = await sb.from(T).insert({ data }); if (r.error) throw r.error; await load(); },
-    doc: (id) => ({
-      set: async (data) => { const r = await sb.from(T).update({ data, updated_at: new Date().toISOString() }).eq("id", id); if (r.error) throw r.error; await load(); },
-      delete: async () => { const r = await sb.from(T).delete().eq("id", id); if (r.error) throw r.error; await load(); },
-    }),
-  };
-  let channel = null;
-  async function load() {
-    const r = await sb.from(T).select("id,data");
-    if (r.error) {
-      loaded = true;
-      $("empty").innerHTML = "<strong>Can't load projects</strong>Your login may not have access to the register. Ask an admin.";
-      render(); return;
-    }
-    projects = r.data.map(row => Object.assign({ id: row.id }, row.data));
-    loaded = true; render();
-  }
-  function showGate(msg) {
-    if (channel) { sb.removeChannel(channel); channel = null; }
-    projects = []; loaded = false;
-    $("app").hidden = true; $("gate").hidden = false;
-    if (msg) $("gateMsg").textContent = msg;
-  }
-  async function enter() {
-    $("gate").hidden = true; $("app").hidden = false;
-    render();
-    await load();
-    if (!channel) channel = sb.channel("pr").on("postgres_changes", { event: "*", schema: "public", table: T }, load).subscribe();
-  }
-  $("gate").addEventListener("submit", async e => {
-    e.preventDefault();
-    $("signInBtn").disabled = true;
-    const r = await sb.auth.signInWithPassword({ email: $("g-email").value.trim(), password: $("g-pass").value });
-    $("signInBtn").disabled = false;
-    if (r.error) { $("gateMsg").textContent = "Sign-in failed. Check your email and password."; return; }
-    $("g-pass").value = "";
-    enter();
-  });
-  $("signOutBtn").addEventListener("click", async () => { await sb.auth.signOut(); showGate("Signed out."); });
-  const sess = await sb.auth.getSession();
-  if (sess.data.session) enter(); else showGate();
-})();
-</script>
-
+<script src="app.js"></script>
 </body></html>
