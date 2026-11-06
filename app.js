@@ -20,6 +20,21 @@
     return out;
   }
 
+  const isPM = c => (c.type || "") === "Project Manager";
+  // Project Managers always come first; everyone else keeps their saved order.
+  const ordered = p => { const cs = contactsOf(p); return cs.filter(isPM).concat(cs.filter(c => !isPM(c))); };
+  const keyOf = c => (c.email || "").trim().toLowerCase() || ((c.name || "").trim().toLowerCase() + "|" + (c.type || ""));
+  const sameCustomer = (p, cust) => (p.customer || "").trim().toLowerCase() === (cust || "").trim().toLowerCase();
+  const recentFirst = (a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
+  // Every distinct contact stored on this customer's other projects (newest project first).
+  function savedContactsFor(cust, excludeId) {
+    if (!(cust || "").trim()) return [];
+    const seen = new Set(), out = [];
+    projects.filter(p => p.id !== excludeId && sameCustomer(p, cust)).sort(recentFirst).forEach(p =>
+      contactsOf(p).forEach(c => { if (!c.name) return; const k = keyOf(c); if (!seen.has(k)) { seen.add(k); out.push(c); } }));
+    return out;
+  }
+
   function setMode(m) {
     mode = m;
     $("listView").hidden = m !== "list";
@@ -75,14 +90,17 @@
       const n = cell("c-name"); n.appendChild(el("span", "pname", p.name || "Untitled"));
       if (p.town) n.appendChild(el("span", "note", p.town));
       cell("c-cust").textContent = p.customer || "—";
-      const cc = cell("c-contacts"); const cs = contactsOf(p);
-      if (!cs.length) cc.textContent = "—";
-      else {
-        const box = el("span", "clines");
-        cs.slice(0, 2).forEach(c => { const d = el("div"); d.appendChild(document.createTextNode(c.name || c.email || "—")); if (c.type) d.appendChild(el("small", "", " · " + c.type)); box.appendChild(d); });
-        if (cs.length > 2) box.appendChild(el("small", "", "+" + (cs.length - 2) + " more"));
-        cc.appendChild(box);
-      }
+      const cc = cell("c-contacts"); const cs = ordered(p);
+      const lines = cs.some(isPM) ? cs.slice() : [null].concat(cs);   // null = "no Project Manager" notice
+      const box = el("span", "clines");
+      lines.slice(0, 2).forEach(c => {
+        const d = el("div");
+        if (!c) d.appendChild(el("span", "nopm", "Project Manager: none on this project"));
+        else { d.appendChild(document.createTextNode(c.name || c.email || "—")); if (c.type) d.appendChild(el("small", "", " · " + c.type)); }
+        box.appendChild(d);
+      });
+      if (lines.length > 2) box.appendChild(el("small", "", "+" + (lines.length - 2) + " more"));
+      cc.appendChild(box);
       const l = cell("c-loc"); l.appendChild(el("span", "chip " + (p.location === "WC" ? "wc" : "ct"), LOC[p.location] || "—"));
       const s = cell("c-status"); const ss = el("span", "status " + (p.status || ""), p.status || "—"); ss.dataset.s = p.status || ""; s.appendChild(ss);
       tb.appendChild(tr);
@@ -142,26 +160,32 @@
     add("Customer", p.customer); add("Town / site", p.town); add("Notes", p.notes);
     box.appendChild(kv);
 
-    const cs = contactsOf(p);
+    const cs = ordered(p);
     box.appendChild(el("div", "sec-title", "Contacts (" + cs.length + ")"));
-    if (!cs.length) box.appendChild(el("p", "notice", "No contacts yet. Use Edit project to add one.")).style.color = "var(--muted)";
-    else {
-      const ul = el("ul", "clist");
-      cs.forEach(c => {
-        const li = document.createElement("li");
-        li.appendChild(el("strong", "", c.name || "—"));
-        li.appendChild(el("span", "chip type", c.type || "Contact"));
-        const m = el("span", "cmail");
-        if (c.email) {
-          const a = el("a", "", c.email); a.href = "mailto:" + c.email; a.style.overflowWrap = "anywhere";
-          m.append(a, copyButton(c.email));
-        } else m.textContent = "—";
-        li.appendChild(m);
-        li.appendChild(el("span", "", c.phone || "—"));
-        ul.appendChild(li);
-      });
-      box.appendChild(ul);
+    const ul = el("ul", "clist");
+    if (!cs.some(isPM)) {
+      const li = document.createElement("li");
+      li.appendChild(el("strong", "", "Project Manager"));
+      li.appendChild(el("span", "chip type", "Project Manager"));
+      const w = el("span", "nopm", "No Project Manager on this project. Use Edit project to add one.");
+      w.style.gridColumn = "span 2";
+      li.appendChild(w);
+      ul.appendChild(li);
     }
+    cs.forEach(c => {
+      const li = document.createElement("li");
+      li.appendChild(el("strong", "", c.name || "—"));
+      li.appendChild(el("span", "chip type", c.type || "Contact"));
+      const m = el("span", "cmail");
+      if (c.email) {
+        const link = el("a", "", c.email); link.href = "mailto:" + c.email; link.style.overflowWrap = "anywhere";
+        m.append(link, copyButton(c.email));
+      } else m.textContent = "—";
+      li.appendChild(m);
+      li.appendChild(el("span", "", c.phone || "—"));
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
     if (p.updatedAt) box.appendChild(el("p", "fine", "Last updated " + new Date(p.updatedAt).toLocaleString()));
   }
 
@@ -173,6 +197,15 @@
     wrap.textContent = "";
     formContacts.forEach((c, i) => {
       const row = el("div", "crow");
+      const used = new Set(formContacts.map((x, j) => j === i ? "" : keyOf(x)));
+      const saved = savedContactsFor($("f-cust").value, editingId).filter(s => !used.has(keyOf(s)));
+      if (saved.length) {
+        const pick = el("select", "pick"); pick.setAttribute("aria-label", "Pick a saved contact for this customer");
+        const p0 = el("option", "", "Pick a saved contact from " + $("f-cust").value.trim() + "…"); p0.value = ""; pick.appendChild(p0);
+        saved.forEach((s, j) => { const o = el("option", "", s.name + (s.type ? " · " + s.type : "") + (s.email ? " · " + s.email : "")); o.value = String(j); pick.appendChild(o); });
+        pick.addEventListener("change", () => { if (pick.value === "") return; Object.assign(c, blank(), saved[+pick.value]); renderContactRows(); });
+        row.appendChild(pick);
+      }
       const field = (label, input) => { const f = el("div", "field"); const l = el("label", "", label); l.htmlFor = input.id; f.append(l, input); return f; };
       const mk = (key, id, type, ph, auto) => { const inp = el("input"); inp.id = id; inp.type = type; inp.value = c[key] || ""; if (ph) inp.placeholder = ph; inp.autocomplete = auto || "off"; inp.addEventListener("input", () => { c[key] = inp.value; }); return inp; };
       const sel = el("select"); sel.id = "c" + i + "-type";
@@ -213,16 +246,22 @@
   function closeForm() { if (editingId) openView(editingId); else showList(); }
   function showErr(msg) { $("formErr").textContent = msg; $("formErr").hidden = false; }
 
-  // Re-use contacts from the customer's most recent project when this one's contacts are still empty.
+  // New project for a company we already have: fill in ONLY its Accounts Payable (invoicing) contact(s).
+  // Everything else stays blank; the company's other saved contacts are offered in each row's picker.
   $("f-cust").addEventListener("change", () => {
-    const c = $("f-cust").value.trim().toLowerCase(); if (!c) return;
-    if (!(formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type)) return;
-    const prev = projects.filter(p => p.id !== editingId && (p.customer || "").toLowerCase() === c && contactsOf(p).length)
-      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
-    if (!prev) return;
-    formContacts = contactsOf(prev).map(x => Object.assign(blank(), x));
+    const cust = $("f-cust").value.trim(); if (!cust) return;
+    const untouched = formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type;
+    let filled = false;
+    if (!editingId && untouched) {
+      const prev = projects.filter(p => sameCustomer(p, cust) && contactsOf(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
+      if (prev) {
+        const ap = contactsOf(prev).filter(c => c.type === "Accounts Payable").map(x => Object.assign(blank(), x));
+        formContacts = ap.concat([blank()]);
+        filled = true;
+      }
+    }
     renderContactRows();
-    $("autofillNote").hidden = false;
+    $("autofillNote").hidden = !filled;
   });
 
   $("cancelBtn").addEventListener("click", closeForm);
@@ -247,6 +286,7 @@
     if (dup) { showErr("Job " + data.job + " is already used by “" + dup.name + "”."); return; }
     if (!col) { showErr("Saving isn't available right now. Reload the page and try again."); return; }
 
+    contacts.sort((x, y) => (isPM(y) ? 1 : 0) - (isPM(x) ? 1 : 0));
     data.contacts = contacts;
     data.updatedAt = new Date().toISOString();
     $("saveBtn").disabled = true;

@@ -145,6 +145,8 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .clist { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
 .clist li { display: grid; grid-template-columns: 1.2fr 1fr 1.6fr 1fr; gap: 4px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: center; }
 .clist li:last-child { border-bottom: 0; }
+.nopm { color: var(--danger); font-weight: 600; }
+.crow .pick { grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--kim-blue-dark); font-weight: 500; }
 .chip.type { color: var(--kim-blue-dark); background: var(--kim-blue-tint); justify-self: start; }
 .fine { font-size: 12px; color: var(--muted); margin: 18px 0 0; }
 .crow { display: grid; grid-template-columns: 1fr 1fr 1.3fr 1fr auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); margin-bottom: 10px; }
@@ -227,7 +229,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
         <select id="f-status"><option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option></select></div>
       <div class="sub wide"><span>Contacts</span><small>Add at least one contact and choose what kind of contact they are.</small></div>
       <div class="wide" id="contactRows"></div>
-      <div class="wide"><button type="button" id="addContactBtn" class="btn">+ Add another contact</button> <small id="autofillNote" class="notice" style="color:var(--muted)" hidden>Contacts copied from this customer's last project. Change them if this job is different.</small></div>
+      <div class="wide"><button type="button" id="addContactBtn" class="btn">+ Add another contact</button> <small id="autofillNote" class="notice" style="color:var(--muted)" hidden>Accounts Payable filled in from this customer's earlier projects. Everything else is blank. Use “Pick a saved contact” on a row to reuse their other contacts.</small></div>
       <div class="field wide"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Optional"></textarea></div>
     </div>
     <datalist id="custList"></datalist>
