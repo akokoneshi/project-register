@@ -101,6 +101,10 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .status[data-s="Complete"] { color: var(--muted); }
 .ex { font-family: var(--f-mono); font-size: 11px; color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 
+.pw { position: relative; display: flex; }
+.pw input { flex: 1; padding-right: 64px; }
+.pwbtn { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--kim-blue-dark); font-weight: 600; font-size: 13px; padding: 6px 8px; cursor: pointer; border-radius: 6px; }
+.pwbtn:hover { background: var(--kim-blue-tint); }
 .sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
 .sub span { font-family: var(--f-display); font-weight: 600; font-size: 16px; }
 .sub small { color: var(--muted); font-size: 13px; }
@@ -158,7 +162,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
   <p class="notice" id="gateMsg">Sign in with your Kim Industries materials login.</p>
   <div class="grid" style="grid-template-columns:1fr">
     <div class="field"><label for="g-email">Email</label><input id="g-email" type="email" autocomplete="username" required></div>
-    <div class="field"><label for="g-pass">Password</label><input id="g-pass" type="password" autocomplete="current-password" required></div>
+    <div class="field"><label for="g-pass">Password</label><div class="pw"><input id="g-pass" type="password" autocomplete="current-password" required><button type="button" id="pwToggle" class="pwbtn" aria-pressed="false" aria-controls="g-pass">Show</button></div></div>
   </div>
   <div class="actions"><button id="signInBtn" class="btn primary" type="submit">Sign in</button></div>
 </form>

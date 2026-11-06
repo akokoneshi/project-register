@@ -319,6 +319,13 @@
     $("g-pass").value = "";
     enter();
   });
+  $("pwToggle").addEventListener("click", () => {
+    const inp = $("g-pass"), show = inp.type === "password";
+    inp.type = show ? "text" : "password";
+    $("pwToggle").textContent = show ? "Hide" : "Show";
+    $("pwToggle").setAttribute("aria-pressed", String(show));
+    inp.focus();
+  });
   $("signOutBtn").addEventListener("click", async () => { await sb.auth.signOut(); showGate("Signed out."); });
   const sess = await sb.auth.getSession();
   if (sess.data.session) enter(); else showGate();
