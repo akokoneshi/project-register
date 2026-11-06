@@ -1,36 +1,27 @@
 <!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <title>Project Register</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
 <style>
 /* Layout: one working column — header with location counts, a filter bar, then the register table (cards on phones). */
 :root {
-  --bg: #f3f4f1;
+  color-scheme: light;
+  --kim-blue: #1b75bc; --kim-blue-dark: #145a92; --kim-blue-tint: #e8f2fb; --kim-ink: #231f20;
+  --bg: #f6f9fc;
   --surface: #ffffff;
-  --ink: #1d2320;
-  --muted: #5f6a64;
-  --line: #dadfda;
-  --accent: #c2410c;
+  --ink: #231f20;
+  --muted: #5d6775;
+  --line: #dbe3ec;
+  --accent: #1b75bc;
   --accent-ink: #ffffff;
-  --ct: #2f6b4f;  --ct-bg: #e4efe8;
-  --wc: #2b5a8a;  --wc-bg: #e3ecf6;
-  --danger: #b42318;
-  --focus: #c2410c;
-  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
-  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
-  --bg: #141816; --surface: #1c211e; --ink: #e8ece9; --muted: #9aa59f; --line: #2e3531;
-  --accent: #f08a4b; --accent-ink: #1a0f08;
-  --ct: #7fc29d; --ct-bg: #1f3329; --wc: #8db8e3; --wc-bg: #1d2b3b;
-  --danger: #f2877e; --focus: #f08a4b; color-scheme: dark;
-} }
-:root[data-theme="dark"] {
-  --bg: #141816; --surface: #1c211e; --ink: #e8ece9; --muted: #9aa59f; --line: #2e3531;
-  --accent: #f08a4b; --accent-ink: #1a0f08;
-  --ct: #7fc29d; --ct-bg: #1f3329; --wc: #8db8e3; --wc-bg: #1d2b3b;
-  --danger: #f2877e; --focus: #f08a4b; color-scheme: dark;
+  --ct: #145a92;  --ct-bg: #e8f2fb;
+  --wc: #8a5300;  --wc-bg: #fff5e1;
+  --ok: #17803d;  --warn-dot: #d98a00;
+  --danger: #c8161d;
+  --focus: #1b75bc;
+  --radius: 14px;
+  --shadow: 0 1px 2px rgba(20,50,90,.06), 0 4px 14px rgba(20,50,90,.06);
+  --f-display: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --f-body: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  --f-mono: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 body {
@@ -44,8 +35,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
-h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(28px, 5vw, 38px); line-height: 1.05; margin: 0; text-wrap: balance; }
+.eyebrow { font-family: var(--f-body); font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+h1 { font-family: var(--f-display); font-weight: 700; color: var(--kim-ink); font-size: clamp(28px, 5vw, 38px); line-height: 1.05; margin: 0; text-wrap: balance; }
 .counts { display: flex; gap: 8px; flex-wrap: wrap; }
 .count { display: flex; flex-direction: column; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); min-width: 108px; }
 .count b { font-family: var(--f-display); font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -55,31 +46,32 @@ h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(28px, 5vw
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
 .seg button { border: 0; background: none; padding: 8px 12px; cursor: pointer; font-size: 14px; color: var(--muted); white-space: nowrap; }
 .seg button + button { border-left: 1px solid var(--line); }
-.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.seg button[aria-pressed="true"] { background: var(--kim-blue); color: #fff; }
 .search { flex: 1 1 220px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
 .btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; }
-.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.primary { background: var(--kim-blue); border-color: var(--kim-blue); color: #fff; font-weight: 600; }
+.btn.primary:hover { background: var(--kim-blue-dark); border-color: var(--kim-blue-dark); }
 .btn.danger { color: var(--danger); }
 .btn.danger.armed { background: var(--danger); border-color: var(--danger); color: var(--surface); }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
 /* Form panel */
-.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+.panel { background: var(--surface); box-shadow: var(--shadow); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; }
 .panel h2 { font-family: var(--f-display); font-size: 20px; margin: 0 0 14px; }
 .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; }
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field.wide { grid-column: 1 / -1; }
 .field label { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
-.field input, .field select, .field textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
+.field input, .field select, .field textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; min-width: 0; }
 .field textarea { resize: vertical; min-height: 60px; }
 .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; justify-content: flex-end; }
 .actions .spacer { flex: 1; }
 .err { color: var(--danger); font-size: 13px; margin: 10px 0 0; }
 
 /* Table */
-.tablebox { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+.tablebox { box-shadow: var(--shadow); background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow-x: auto; }
 table { width: 100%; border-collapse: collapse; }
-th { text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { background: var(--kim-blue-tint); text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--kim-blue-dark); padding: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
 th button { all: unset; cursor: pointer; display: block; padding: 10px 14px; }
 th button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 th .arrow { opacity: .35; margin-left: 4px; }
@@ -88,7 +80,7 @@ td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: t
 tr:last-child td { border-bottom: 0; }
 tbody tr { cursor: pointer; }
 tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)); }
-.job { font-family: var(--f-mono); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.job { font-weight: 700; color: var(--kim-blue-dark); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .pname { font-weight: 600; }
 .note { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
 .chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
@@ -96,9 +88,9 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .chip.wc { color: var(--wc); background: var(--wc-bg); }
 .status { font-size: 13px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
 .status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-.status.Active::before { background: var(--ct); }
-.status.Bidding::before { background: var(--wc); }
-.status.On.hold::before, .status[data-s="On hold"]::before { background: var(--accent); }
+.status.Active::before { background: var(--ok); }
+.status.Bidding::before { background: var(--kim-blue); }
+.status.On.hold::before, .status[data-s="On hold"]::before { background: var(--warn-dot); }
 .status[data-s="Complete"] { color: var(--muted); }
 .ex { font-family: var(--f-mono); font-size: 11px; color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
 
@@ -133,6 +125,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 </style>
 
 <form id="gate" class="panel" style="max-width:420px;margin:12vh auto" hidden>
+  <img src="assets/kim-logo.png" alt="Kim Industries" style="height:40px;width:auto;margin:0 0 10px">
   <h2>Project Register</h2>
   <p class="notice" id="gateMsg">Sign in with your Kim Industries materials login.</p>
   <div class="grid" style="grid-template-columns:1fr">
@@ -144,6 +137,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 <div class="wrap" id="app" hidden>
   <header>
     <div>
+      <img src="assets/kim-logo.png" alt="Kim Industries" style="height:36px;width:auto;display:block;margin-bottom:10px">
       <p class="eyebrow">Connecticut · Hudson Valley</p>
       <h1>Project Register</h1>
     </div>
