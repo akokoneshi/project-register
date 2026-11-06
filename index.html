@@ -1,0 +1,438 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Project Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: one working column — header with location counts, a filter bar, then the register table (cards on phones). */
+:root {
+  --bg: #f3f4f1;
+  --surface: #ffffff;
+  --ink: #1d2320;
+  --muted: #5f6a64;
+  --line: #dadfda;
+  --accent: #c2410c;
+  --accent-ink: #ffffff;
+  --ct: #2f6b4f;  --ct-bg: #e4efe8;
+  --wc: #2b5a8a;  --wc-bg: #e3ecf6;
+  --danger: #b42318;
+  --focus: #c2410c;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141816; --surface: #1c211e; --ink: #e8ece9; --muted: #9aa59f; --line: #2e3531;
+  --accent: #f08a4b; --accent-ink: #1a0f08;
+  --ct: #7fc29d; --ct-bg: #1f3329; --wc: #8db8e3; --wc-bg: #1d2b3b;
+  --danger: #f2877e; --focus: #f08a4b; color-scheme: dark;
+} }
+:root[data-theme="dark"] {
+  --bg: #141816; --surface: #1c211e; --ink: #e8ece9; --muted: #9aa59f; --line: #2e3531;
+  --accent: #f08a4b; --accent-ink: #1a0f08;
+  --ct: #7fc29d; --ct-bg: #1f3329; --wc: #8db8e3; --wc-bg: #1d2b3b;
+  --danger: #f2877e; --focus: #f08a4b; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+.wrap { max-width: 1080px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
+.eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: clamp(28px, 5vw, 38px); line-height: 1.05; margin: 0; text-wrap: balance; }
+.counts { display: flex; gap: 8px; flex-wrap: wrap; }
+.count { display: flex; flex-direction: column; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); min-width: 108px; }
+.count b { font-family: var(--f-display); font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.count span { font-size: 12px; color: var(--muted); }
+
+.bar { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; padding: 8px 12px; cursor: pointer; font-size: 14px; color: var(--muted); white-space: nowrap; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--bg); }
+.search { flex: 1 1 220px; min-width: 0; padding: 8px 12px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); }
+.btn { border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 500; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+.btn.danger { color: var(--danger); }
+.btn.danger.armed { background: var(--danger); border-color: var(--danger); color: var(--surface); }
+.btn:disabled { opacity: .5; cursor: not-allowed; }
+
+/* Form panel */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; }
+.panel h2 { font-family: var(--f-display); font-size: 20px; margin: 0 0 14px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.field.wide { grid-column: 1 / -1; }
+.field label { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.field input, .field select, .field textarea { padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); min-width: 0; }
+.field textarea { resize: vertical; min-height: 60px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+.actions .spacer { flex: 1; }
+.err { color: var(--danger); font-size: 13px; margin: 10px 0 0; }
+
+/* Table */
+.tablebox { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); padding: 0; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th button { all: unset; cursor: pointer; display: block; padding: 10px 14px; }
+th button:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+th .arrow { opacity: .35; margin-left: 4px; }
+th[aria-sort="ascending"] .arrow, th[aria-sort="descending"] .arrow { opacity: 1; color: var(--accent); }
+td { padding: 11px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+tbody tr { cursor: pointer; }
+tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)); }
+.job { font-family: var(--f-mono); font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pname { font-weight: 600; }
+.note { display: block; font-size: 13px; color: var(--muted); margin-top: 2px; }
+.chip { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; white-space: nowrap; }
+.chip.ct { color: var(--ct); background: var(--ct-bg); }
+.chip.wc { color: var(--wc); background: var(--wc-bg); }
+.status { font-size: 13px; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; }
+.status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.status.Active::before { background: var(--ct); }
+.status.Bidding::before { background: var(--wc); }
+.status.On.hold::before, .status[data-s="On hold"]::before { background: var(--accent); }
+.status[data-s="Complete"] { color: var(--muted); }
+.ex { font-family: var(--f-mono); font-size: 11px; color: var(--muted); border: 1px dashed var(--line); border-radius: 4px; padding: 0 5px; margin-left: 6px; vertical-align: 1px; }
+
+.sub { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
+.sub span { font-family: var(--f-display); font-weight: 600; font-size: 16px; }
+.sub small { color: var(--muted); font-size: 13px; }
+.contact { min-width: 0; }
+.cname { display: block; }
+.cmail { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; font-size: 13px; color: var(--muted); }
+.cmail span { overflow-wrap: anywhere; user-select: all; }
+.copy { border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 11px; padding: 1px 6px; border-radius: 4px; cursor: pointer; flex: none; }
+.copy:hover { color: var(--ink); }
+.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
+.notice { font-size: 13px; color: var(--muted); }
+
+/* Phone: rows become cards */
+@media (max-width: 640px) {
+  thead { display: none; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  tbody tr { padding: 12px 14px; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
+  tbody tr:last-child { border-bottom: 0; }
+  td { padding: 0; border: 0; }
+  td.c-job { grid-column: 1; }
+  td.c-loc { grid-column: 2; grid-row: 1; text-align: right; }
+  td.c-name, td.c-cust, td.c-status { grid-column: 1 / -1; }
+  td.c-pm, td.c-ap { grid-column: 1 / -1; font-size: 14px; }
+  td.c-pm::before, td.c-ap::before { content: attr(data-label); display: block; color: var(--muted); font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; margin-top: 4px; }
+  td.c-cust { color: var(--muted); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<form id="gate" class="panel" style="max-width:420px;margin:12vh auto" hidden>
+  <h2>Project Register</h2>
+  <p class="notice" id="gateMsg">Sign in with your Kim Industries materials login.</p>
+  <div class="grid" style="grid-template-columns:1fr">
+    <div class="field"><label for="g-email">Email</label><input id="g-email" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="g-pass">Password</label><input id="g-pass" type="password" autocomplete="current-password" required></div>
+  </div>
+  <div class="actions"><button id="signInBtn" class="btn primary" type="submit">Sign in</button></div>
+</form>
+<div class="wrap" id="app" hidden>
+  <header>
+    <div>
+      <p class="eyebrow">Connecticut · Hudson Valley</p>
+      <h1>Project Register</h1>
+    </div>
+    <div class="counts" id="counts">
+      <div class="count"><b id="n-all">–</b><span>All projects</span></div>
+      <div class="count"><b id="n-ct">–</b><span>Connecticut</span></div>
+      <div class="count"><b id="n-wc">–</b><span>Hudson Valley</span></div>
+    </div>
+  </header>
+
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Filter by location" id="locSeg">
+      <button type="button" data-loc="all" aria-pressed="true">All</button>
+      <button type="button" data-loc="CT" aria-pressed="false">Connecticut</button>
+      <button type="button" data-loc="WC" aria-pressed="false">Hudson Valley</button>
+    </div>
+    <select id="statusFilter" class="btn" aria-label="Filter by status">
+      <option value="">Any status</option>
+      <option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option>
+    </select>
+    <input id="q" class="search" type="search" placeholder="Search job #, project, customer, contact…" aria-label="Search projects">
+    <button id="addBtn" class="btn primary" type="button">+ Add project</button>
+  </div>
+
+  <form id="form" class="panel" hidden novalidate>
+    <h2 id="formTitle">New project</h2>
+    <div class="grid">
+      <div class="field"><label for="f-job">Job number</label><input id="f-job" required autocomplete="off" placeholder="e.g. 26-0142"></div>
+      <div class="field"><label for="f-name">Project name</label><input id="f-name" required autocomplete="off" placeholder="e.g. Main St. Office Renovation"></div>
+      <div class="field"><label for="f-cust">Customer</label><input id="f-cust" required autocomplete="off" list="custList"></div>
+      <div class="field"><label for="f-loc">Location</label>
+        <select id="f-loc"><option value="CT">Connecticut</option><option value="WC">Hudson Valley, NY</option></select></div>
+      <div class="field"><label for="f-town">Town / site</label><input id="f-town" autocomplete="off" placeholder="Optional"></div>
+      <div class="field"><label for="f-status">Status</label>
+        <select id="f-status"><option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option></select></div>
+      <div class="sub wide"><span>Customer contacts</span><small id="autofillNote" hidden>Filled in from this customer's last project. Change them if this job is different.</small></div>
+      <div class="field"><label for="f-pmName">Customer PM · name</label><input id="f-pmName" autocomplete="off"></div>
+      <div class="field"><label for="f-pmEmail">Customer PM · email</label><input id="f-pmEmail" type="email" autocomplete="off" placeholder="name@company.com"></div>
+      <div class="field"><label for="f-apName">Customer AP · name</label><input id="f-apName" autocomplete="off"></div>
+      <div class="field"><label for="f-apEmail">Customer AP · email</label><input id="f-apEmail" type="email" autocomplete="off" placeholder="ap@company.com"></div>
+      <div class="field wide"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Optional"></textarea></div>
+    </div>
+    <datalist id="custList"></datalist>
+    <p class="err" id="formErr" hidden></p>
+    <div class="actions">
+      <button type="button" id="delBtn" class="btn danger" hidden>Delete</button>
+      <span class="spacer"></span>
+      <button type="button" id="cancelBtn" class="btn">Cancel</button>
+      <button type="submit" id="saveBtn" class="btn primary">Save project</button>
+    </div>
+  </form>
+
+  <div class="tablebox">
+    <table>
+      <thead><tr>
+        <th data-k="job"><button type="button">Job #<span class="arrow">↕</span></button></th>
+        <th data-k="name"><button type="button">Project<span class="arrow">↕</span></button></th>
+        <th data-k="customer"><button type="button">Customer<span class="arrow">↕</span></button></th>
+        <th data-k="pmName"><button type="button">Customer PM<span class="arrow">↕</span></button></th>
+        <th data-k="apName"><button type="button">Customer AP<span class="arrow">↕</span></button></th>
+        <th data-k="location"><button type="button">Location<span class="arrow">↕</span></button></th>
+        <th data-k="status"><button type="button">Status<span class="arrow">↕</span></button></th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table>
+    <div class="empty" id="empty"><strong>Loading your projects…</strong>Your saved projects will appear here.</div>
+  </div>
+  <p class="notice" id="notice"><button id="signOutBtn" class="btn" type="button" style="padding:2px 10px;margin-right:8px">Sign out</button>Tap any project to edit it. Changes save automatically for everyone signed in.</p>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script>
+(async function () {
+  const LOC = { CT: "Connecticut", WC: "Hudson Valley, NY" };
+  const $ = (id) => document.getElementById(id);
+  let projects = [];
+  let loaded = false;
+  let db = null, col = null, canWrite = true;
+  let editingId = null;
+  const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
+
+  try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
+  function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
+
+  function contactCell(td, label, name, email) {
+    td.dataset.label = label; td.className += " contact";
+    if (!name && !email) { td.textContent = "—"; return; }
+    if (name) { const n = document.createElement("span"); n.className = "cname"; n.textContent = name; td.appendChild(n); }
+    if (email) {
+      const m = document.createElement("span"); m.className = "cmail";
+      const t = document.createElement("span"); t.textContent = email; m.appendChild(t);
+      const b = document.createElement("button"); b.type = "button"; b.className = "copy"; b.textContent = "Copy"; b.dataset.email = email; b.setAttribute("aria-label", "Copy " + email);
+      m.appendChild(b); td.appendChild(m);
+    }
+  }
+
+  function render() {
+    $("n-all").textContent = loaded ? projects.length : "–";
+    $("n-ct").textContent = loaded ? projects.filter(p => p.location === "CT").length : "–";
+    $("n-wc").textContent = loaded ? projects.filter(p => p.location === "WC").length : "–";
+
+    document.querySelectorAll("#locSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.loc === view.loc)));
+    $("statusFilter").value = view.status;
+    if ($("q").value !== view.q) $("q").value = view.q;
+    document.querySelectorAll("th").forEach(th => {
+      const on = th.dataset.k === view.sortK;
+      th.setAttribute("aria-sort", on ? (view.sortDir > 0 ? "ascending" : "descending") : "none");
+      th.querySelector(".arrow").textContent = on ? (view.sortDir > 0 ? "↑" : "↓") : "↕";
+    });
+
+    const q = view.q.trim().toLowerCase();
+    const list = projects.filter(p =>
+      (view.loc === "all" || p.location === view.loc) &&
+      (!view.status || p.status === view.status) &&
+      (!q || [p.job, p.name, p.customer, p.pmName, p.pmEmail, p.apName, p.apEmail, p.town, p.notes].join(" ").toLowerCase().includes(q))
+    ).sort((a, b) => {
+      const k = view.sortK;
+      const av = k === "location" ? LOC[a.location] : (a[k] || "");
+      const bv = k === "location" ? LOC[b.location] : (b[k] || "");
+      return String(av).localeCompare(String(bv), undefined, { numeric: true, sensitivity: "base" }) * view.sortDir;
+    });
+
+    const tb = $("rows");
+    tb.textContent = "";
+    for (const p of list) {
+      const tr = document.createElement("tr");
+      tr.tabIndex = 0;
+      tr.dataset.id = p.id;
+      const cell = (cls) => { const td = document.createElement("td"); td.className = cls; tr.appendChild(td); return td; };
+      const j = cell("c-job"); const js = document.createElement("span"); js.className = "job"; js.textContent = p.job || "—"; j.appendChild(js);
+      if (p.example) { const e = document.createElement("span"); e.className = "ex"; e.textContent = "example"; j.appendChild(e); }
+      const n = cell("c-name"); const ns = document.createElement("span"); ns.className = "pname"; ns.textContent = p.name || "Untitled"; n.appendChild(ns);
+      if (p.town) { const t = document.createElement("span"); t.className = "note"; t.textContent = p.town; n.appendChild(t); }
+      cell("c-cust").textContent = p.customer || "—";
+      contactCell(cell("c-pm"), "PM", p.pmName, p.pmEmail);
+      contactCell(cell("c-ap"), "AP", p.apName, p.apEmail);
+      const l = cell("c-loc"); const ls = document.createElement("span"); ls.className = "chip " + (p.location === "WC" ? "wc" : "ct"); ls.textContent = LOC[p.location] || "—"; l.appendChild(ls);
+      const s = cell("c-status"); const ss = document.createElement("span"); ss.className = "status " + (p.status || ""); ss.dataset.s = p.status || ""; ss.textContent = p.status || "—"; s.appendChild(ss);
+      tb.appendChild(tr);
+    }
+
+    const empty = $("empty");
+    if (!loaded) { empty.hidden = false; }
+    else if (!projects.length) { empty.hidden = false; empty.innerHTML = "<strong>No projects yet</strong>Use “+ Add project” to enter your first job."; }
+    else if (!list.length) { empty.hidden = false; empty.innerHTML = "<strong>No matches</strong>Try another location, status or search."; }
+    else empty.hidden = true;
+
+    const uniq = k => [...new Set(projects.map(p => p[k]).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+    const fillList = (id, k) => { const dl = $(id); dl.textContent = ""; uniq(k).forEach(v => { const o = document.createElement("option"); o.value = v; dl.appendChild(o); }); };
+    fillList("custList", "customer");
+  }
+
+  // Filters & sorting
+  $("locSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; view.loc = b.dataset.loc; saveView(); render(); });
+  $("statusFilter").addEventListener("change", e => { view.status = e.target.value; saveView(); render(); });
+  $("rows").addEventListener("click", e => {
+    const b = e.target.closest(".copy"); if (!b) return;
+    e.stopPropagation();
+    const done = () => { b.textContent = "Copied"; setTimeout(() => { b.textContent = "Copy"; }, 1500); };
+    const fallback = () => { const r = document.createRange(); r.selectNodeContents(b.previousElementSibling); const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r); b.textContent = "Selected"; setTimeout(() => { b.textContent = "Copy"; }, 1500); };
+    try { navigator.clipboard.writeText(b.dataset.email).then(done, fallback); } catch (err) { fallback(); }
+  }, true);
+  $("q").addEventListener("input", e => { view.q = e.target.value; render(); });
+  document.querySelectorAll("th button").forEach(b => b.addEventListener("click", () => {
+    const k = b.parentElement.dataset.k;
+    if (view.sortK === k) view.sortDir *= -1; else { view.sortK = k; view.sortDir = 1; }
+    saveView(); render();
+  }));
+
+  // Form
+  const F = { job: "f-job", name: "f-name", customer: "f-cust", pmName: "f-pmName", pmEmail: "f-pmEmail", apName: "f-apName", apEmail: "f-apEmail", location: "f-loc", town: "f-town", status: "f-status", notes: "f-notes" };
+  function openForm(p) {
+    editingId = p ? p.id : null;
+    $("formTitle").textContent = p ? "Edit project" : "New project";
+    for (const k in F) $(F[k]).value = p ? (p[k] || "") : (k === "location" ? (view.loc === "WC" ? "WC" : "CT") : k === "status" ? "Active" : "");
+    $("delBtn").hidden = !p; disarm();
+    $("formErr").hidden = true;
+    $("autofillNote").hidden = true;
+    $("form").hidden = false;
+    $("f-job").focus();
+    $("form").scrollIntoView({ block: "nearest" });
+  }
+  function closeForm() { $("form").hidden = true; editingId = null; }
+  function showErr(msg) { $("formErr").textContent = msg; $("formErr").hidden = false; }
+
+  const CONTACT_KEYS = ["pmName", "pmEmail", "apName", "apEmail"];
+  $("f-cust").addEventListener("change", () => {
+    const c = $("f-cust").value.trim().toLowerCase(); if (!c) return;
+    const prev = projects.filter(p => p.id !== editingId && (p.customer || "").toLowerCase() === c)
+      .sort((a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || "")))[0];
+    if (!prev) return;
+    let filled = false;
+    CONTACT_KEYS.forEach(k => { const el = $(F[k]); if (!el.value.trim() && prev[k]) { el.value = prev[k]; filled = true; } });
+    $("autofillNote").hidden = !filled;
+  });
+
+  $("addBtn").addEventListener("click", () => openForm(null));
+  $("cancelBtn").addEventListener("click", closeForm);
+  $("rows").addEventListener("click", e => { const tr = e.target.closest("tr"); if (tr) openForm(projects.find(p => p.id === tr.dataset.id)); });
+  $("rows").addEventListener("keydown", e => { if (e.key === "Enter") { const tr = e.target.closest("tr"); if (tr) openForm(projects.find(p => p.id === tr.dataset.id)); } });
+
+  $("form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const data = {};
+    for (const k in F) data[k] = $(F[k]).value.trim();
+    if (!data.job || !data.name || !data.customer) { showErr("Job number, project name and customer are required."); return; }
+    const badMail = ["pmEmail", "apEmail"].find(k => data[k] && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data[k]));
+    if (badMail) { showErr((badMail === "pmEmail" ? "Customer PM" : "Customer AP") + " email doesn't look right. Check it and try again."); return; }
+    const dup = projects.find(p => p.job.toLowerCase() === data.job.toLowerCase() && p.id !== editingId);
+    if (dup) { showErr("Job " + data.job + " is already used by “" + dup.name + "”."); return; }
+    if (!col) { showErr("Saving isn't available right now. Reload the page and try again."); return; }
+    data.updatedAt = new Date().toISOString();
+    data.example = false;
+    $("saveBtn").disabled = true;
+    try {
+      if (editingId) await col.doc(editingId).set(data);
+      else await col.add(data);
+      closeForm();
+    } catch (err) {
+      showErr("Couldn't save. You may not have permission, or check your connection and try again.");
+    } finally { $("saveBtn").disabled = false; }
+  });
+
+  let armTimer = null;
+  function disarm() { const b = $("delBtn"); b.classList.remove("armed"); b.textContent = "Delete"; clearTimeout(armTimer); }
+  $("delBtn").addEventListener("click", async () => {
+    const b = $("delBtn");
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Confirm delete"; armTimer = setTimeout(disarm, 4000); return; }
+    disarm();
+    try { await col.doc(editingId).delete(); closeForm(); }
+    catch (err) { showErr("Couldn't delete this project. Try again."); }
+  });
+
+  render();
+
+  // Data (Supabase Auth + table public.project_register: id, data jsonb, updated_at)
+  const cfg = window.APP_CONFIG || {};
+  if (!cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+    $("gate").hidden = false;
+    $("gateMsg").textContent = "Not configured: fill in config.js.";
+    $("signInBtn").disabled = true;
+    return;
+  }
+  const sb = supabase.createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { storageKey: "project-register-auth" } });
+  const T = "project_register";
+  col = {
+    add: async (data) => { const r = await sb.from(T).insert({ data }); if (r.error) throw r.error; await load(); },
+    doc: (id) => ({
+      set: async (data) => { const r = await sb.from(T).update({ data, updated_at: new Date().toISOString() }).eq("id", id); if (r.error) throw r.error; await load(); },
+      delete: async () => { const r = await sb.from(T).delete().eq("id", id); if (r.error) throw r.error; await load(); },
+    }),
+  };
+  let channel = null;
+  async function load() {
+    const r = await sb.from(T).select("id,data");
+    if (r.error) {
+      loaded = true;
+      $("empty").innerHTML = "<strong>Can't load projects</strong>Your login may not have access to the register. Ask an admin.";
+      render(); return;
+    }
+    projects = r.data.map(row => Object.assign({ id: row.id }, row.data));
+    loaded = true; render();
+  }
+  function showGate(msg) {
+    if (channel) { sb.removeChannel(channel); channel = null; }
+    projects = []; loaded = false;
+    $("app").hidden = true; $("gate").hidden = false;
+    if (msg) $("gateMsg").textContent = msg;
+  }
+  async function enter() {
+    $("gate").hidden = true; $("app").hidden = false;
+    render();
+    await load();
+    if (!channel) channel = sb.channel("pr").on("postgres_changes", { event: "*", schema: "public", table: T }, load).subscribe();
+  }
+  $("gate").addEventListener("submit", async e => {
+    e.preventDefault();
+    $("signInBtn").disabled = true;
+    const r = await sb.auth.signInWithPassword({ email: $("g-email").value.trim(), password: $("g-pass").value });
+    $("signInBtn").disabled = false;
+    if (r.error) { $("gateMsg").textContent = "Sign-in failed. Check your email and password."; return; }
+    $("g-pass").value = "";
+    enter();
+  });
+  $("signOutBtn").addEventListener("click", async () => { await sb.auth.signOut(); showGate("Signed out."); });
+  const sess = await sb.auth.getSession();
+  if (sess.data.session) enter(); else showGate();
+})();
+</script>
+
+</body></html>
