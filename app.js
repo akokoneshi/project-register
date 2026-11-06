@@ -7,7 +7,7 @@
 
   let projects = [], loaded = false, col = null, mode = "list";
   let editingId = null, viewingId = null, formContacts = [];
-  let clientKey = null, returnTo = null, clientQ = "", clients = [];
+  let clientKey = null, returnTo = null, clientQ = "", clients = [], clientContacts = [], editingClient = null;
   const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
   try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
   function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
@@ -58,16 +58,18 @@
   }
 
   // Type-ahead: existing contacts matching what is being typed, this customer's first, then other companies.
-  function suggestionsFor(q, current) {
-    const cust = $("f-cust").value;
-    const used = new Set(formContacts.filter(x => x !== current).map(keyOf));
+  function suggestionsFor(q, current, ctx) {
+    const cust = ctx.cust();
+    const used = new Set(ctx.list.filter(x => x !== current).map(keyOf));
     const seen = new Map();
-    projects.slice().sort(recentFirst).forEach(p => contactsOf(p).forEach(x => {
+    const consider = (x, company) => {
       if (!x.name || !(x.name + " " + x.email).toLowerCase().includes(q)) return;
       const k = keyOf(x); if (used.has(k)) return;
-      const ck = k + "@" + (p.customer || "").trim().toLowerCase();
-      if (!seen.has(ck)) seen.set(ck, Object.assign({}, x, { customer: (p.customer || "").trim() }));
-    }));
+      const ck = k + "@" + (company || "").trim().toLowerCase();
+      if (!seen.has(ck)) seen.set(ck, Object.assign({}, x, { customer: (company || "").trim() }));
+    };
+    projects.slice().sort(recentFirst).forEach(p => contactsOf(p).forEach(x => consider(x, p.customer)));
+    clients.forEach(r => r.contacts.forEach(x => consider(x, r.name)));
     const rank = s => (sameCustomer({ customer: s.customer }, cust) ? 0 : 10) + (s.name.toLowerCase().startsWith(q) ? 0 : 1);
     return [...seen.values()].sort((x, y) => rank(x) - rank(y) || x.name.localeCompare(y.name)).slice(0, 8);
   }
@@ -77,6 +79,7 @@
     $("listView").hidden = m !== "list";
     $("clientsView").hidden = m !== "clients";
     $("clientView").hidden = m !== "client";
+    $("clientEdit").hidden = m !== "clientedit";
     $("detail").hidden = m !== "view";
     $("form").hidden = m !== "edit";
     $("tabs").hidden = !(m === "list" || m === "clients" || m === "client");
@@ -297,7 +300,9 @@
     const back = el("button", "btn", "← All clients"); back.type = "button"; back.addEventListener("click", showClients);
     const add = el("button", "btn primary", "+ Add project for " + g.name); add.type = "button";
     add.addEventListener("click", () => openForm(null, { customer: g.name, from: { client: g.key } }));
-    top.append(back, add); box.appendChild(top);
+    const ed = el("button", "btn", "Edit client"); ed.type = "button"; ed.addEventListener("click", () => openClientEdit(g));
+    const right = el("span", "btnrow"); right.append(ed, add);
+    top.append(back, right); box.appendChild(top);
 
     const head = el("div", "detail-head");
     head.appendChild(el("h2", "", g.name));
@@ -352,31 +357,103 @@
     else box.appendChild(pl);
   }
 
+  // ---------- Edit client (rename, own contacts, remove) ----------
+  function openClientEdit(g) {
+    editingClient = { key: g.key, name: g.name, record: g.record, projects: g.projects.slice() };
+    $("k-name").value = g.name;
+    clientContacts = (g.record ? g.record.contacts : []).map(c => Object.assign(blank(), c));
+    clientCtx.render();
+    const fromProjects = [...g.contacts.values()].filter(x => x.projects.length).length;
+    $("kNote").textContent = g.projects.length
+      ? "Renaming also updates the customer on this client's " + g.projects.length + " project" + (g.projects.length === 1 ? "" : "s") + ". Contacts that come from a project (" + fromProjects + ") are edited on that project; the ones below belong to the client."
+      : "This client has no projects yet.";
+    $("kDelBtn").hidden = !(g.record && !g.projects.length);
+    disarmK(); $("kErr").hidden = true;
+    setMode("clientedit");
+    $("k-name").focus();
+  }
+  const kErr = m => { $("kErr").textContent = m; $("kErr").hidden = false; };
+  $("kCancelBtn").addEventListener("click", () => openClient(editingClient.key));
+
+  $("clientEdit").addEventListener("submit", async e => {
+    e.preventDefault();
+    const old = editingClient, name = $("k-name").value.trim().replace(/\s+/g, " ");
+    if (!name) { kErr("Enter the company name."); return; }
+    const newKey = name.toLowerCase();
+    if (newKey !== old.key && clientsData().some(g => g.key === newKey)) { kErr("Another client is already named “" + name + "”."); return; }
+    const contacts = clientContacts
+      .map(c => ({ type: (c.type || "").trim(), name: (c.name || "").trim(), email: (c.email || "").trim(), phone: (c.phone || "").trim() }))
+      .filter(c => c.type || c.name || c.email || c.phone);
+    for (let i = 0; i < contacts.length; i++) {
+      const c = contacts[i], n = "Contact " + (i + 1);
+      if (!c.name) { kErr(n + " needs a name."); return; }
+      if (!c.type) { kErr(n + ": pick what kind of contact this is."); return; }
+      if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) { kErr(n + " email doesn't look right."); return; }
+    }
+    contacts.sort((x, y) => (isPM(y) ? 1 : 0) - (isPM(x) ? 1 : 0));
+    $("kSaveBtn").disabled = true;
+    try {
+      // 1) projects follow the new name (they are linked to a client by its name)
+      if (name !== old.name) {
+        const now = new Date().toISOString();
+        for (const p of old.projects) {
+          const { id, ...d } = p; d.customer = name; d.updatedAt = now;
+          const r = await sb.from(T).update({ data: d, updated_at: now }).eq("id", id); if (r.error) throw r.error;
+        }
+      }
+      // 2) the client record itself (created now if this client only existed through its projects)
+      if (old.record) {
+        const r = await sb.from("register_clients").update({ name, data: Object.assign({}, old.record.data, { contacts }) }).eq("id", old.record.id); if (r.error) throw r.error;
+      } else {
+        const r = await sb.from("register_clients").insert({ name, data: { contacts } }); if (r.error) throw r.error;
+      }
+      await load(); openClient(newKey);
+    } catch (ex) {
+      await load().catch(() => {});
+      kErr(ex && ex.code === "23505" ? "Another client already has that name." : "Couldn't save. Make sure the latest supabase.sql has been run, check your connection and try again.");
+    } finally { $("kSaveBtn").disabled = false; }
+  });
+
+  let kArm = null;
+  function disarmK() { const b = $("kDelBtn"); b.classList.remove("armed"); b.textContent = "Delete client"; clearTimeout(kArm); }
+  $("kDelBtn").addEventListener("click", async () => {
+    const b = $("kDelBtn");
+    if (!b.classList.contains("armed")) { b.classList.add("armed"); b.textContent = "Confirm delete"; kArm = setTimeout(disarmK, 4000); return; }
+    disarmK();
+    try { const r = await sb.from("register_clients").delete().eq("id", editingClient.record.id); if (r.error) throw r.error; await load(); showClients(); }
+    catch (ex) { kErr("Couldn't delete this client. Try again."); }
+  });
+
   // ---------- Edit / add form ----------
   const F = { job: "f-job", name: "f-name", customer: "f-cust", location: "f-loc", town: "f-town", status: "f-status", notes: "f-notes" };
 
-  function attachSuggest(inp, c) {
+  // Contact-row editor shared by the project form (ids c0-…) and the client form (ids k0-…).
+  const projCtx = { wrap: null, get list() { return formContacts; }, pre: "c", min1: true, cust: () => $("f-cust").value, render: () => renderEditor(projCtx) };
+  const clientCtx = { wrap: null, get list() { return clientContacts; }, pre: "k", min1: false, cust: () => $("k-name").value, render: () => renderEditor(clientCtx) };
+  const renderContactRows = () => renderEditor(projCtx);
+
+  function attachSuggest(inp, c, ctx) {
     const host = inp.parentElement; host.style.position = "relative";
     inp.setAttribute("aria-autocomplete", "list");
     let box = null, items = [], idx = -1;
     const close = () => { if (box) { box.remove(); box = null; } items = []; idx = -1; };
     const mark = () => Array.from(box.children).forEach((b, k) => b.classList.toggle("on", k === idx));
     const choose = s => {
-      const i = formContacts.indexOf(c);
+      const i = ctx.list.indexOf(c);
       c.name = s.name; c.email = s.email || ""; c.phone = s.phone || ""; if (!c.type && s.type) c.type = s.type;
-      close(); renderContactRows();
-      const next = $("c" + i + "-phone"); if (next) next.focus();
+      close(); ctx.render();
+      const next = $(ctx.pre + i + "-phone"); if (next) next.focus();
     };
     const refresh = () => {
       close();
       const q = inp.value.trim().toLowerCase(); if (!q) return;
-      items = suggestionsFor(q, c); if (!items.length) return;
+      items = suggestionsFor(q, c, ctx); if (!items.length) return;
       box = el("div", "sugg"); box.setAttribute("role", "listbox");
       box.addEventListener("mousedown", e => e.preventDefault());
       items.forEach(s => {
         const b = el("button", "sopt"); b.type = "button"; b.setAttribute("role", "option");
         b.appendChild(el("strong", "", s.name));
-        const meta = [s.type, s.email, sameCustomer({ customer: s.customer }, $("f-cust").value) ? "" : s.customer].filter(Boolean).join(" · ");
+        const meta = [s.type, s.email, sameCustomer({ customer: s.customer }, ctx.cust()) ? "" : s.customer].filter(Boolean).join(" · ");
         if (meta) b.appendChild(el("small", "", meta));
         b.addEventListener("click", () => choose(s));
         box.appendChild(b);
@@ -395,30 +472,31 @@
     });
   }
 
-  function renderContactRows() {
-    const wrap = $("contactRows");
+  function renderEditor(ctx) {
+    const wrap = ctx.wrap || (ctx.wrap = $(ctx === projCtx ? "contactRows" : "kContactRows"));
     wrap.textContent = "";
-    formContacts.forEach((c, i) => {
-      const row = el("div", "crow");
+    if (!ctx.list.length) wrap.appendChild(el("p", "notice", "No contacts yet."));
+    ctx.list.forEach((c, i) => {
+      const row = el("div", "crow"), P = ctx.pre + i;
       const field = (label, input) => { const f = el("div", "field"); const l = el("label", "", label); l.htmlFor = input.id; f.append(l, input); return f; };
       const mk = (key, id, type, ph, auto) => { const inp = el("input"); inp.id = id; inp.type = type; inp.value = c[key] || ""; if (ph) inp.placeholder = ph; inp.autocomplete = auto || "off"; inp.addEventListener("input", () => { c[key] = inp.value; }); return inp; };
-      const sel = el("select"); sel.id = "c" + i + "-type";
+      const sel = el("select"); sel.id = P + "-type";
       const o0 = el("option", "", "Select type…"); o0.value = ""; sel.appendChild(o0);
       TYPES.forEach(t => { const o = el("option", "", t); o.value = t; sel.appendChild(o); });
       sel.value = c.type || "";
       sel.addEventListener("change", () => { c.type = sel.value; });
-      const nameIn = mk("name", "c" + i + "-name", "text", "Start typing to search existing contacts");
-      const emailIn = mk("email", "c" + i + "-email", "email", "name@company.com");
+      const nameIn = mk("name", P + "-name", "text", "Start typing to search existing contacts");
+      const emailIn = mk("email", P + "-email", "email", "name@company.com");
       row.append(
         field("Contact type", sel),
         field("Name", nameIn),
         field("Email", emailIn),
-        field("Phone", mk("phone", "c" + i + "-phone", "tel", "Optional"))
+        field("Phone", mk("phone", P + "-phone", "tel", "Optional"))
       );
-      attachSuggest(nameIn, c); attachSuggest(emailIn, c);
-      const rm = el("button", "btn danger rm", "Remove"); rm.type = "button"; rm.disabled = formContacts.length === 1;
+      attachSuggest(nameIn, c, ctx); attachSuggest(emailIn, c, ctx);
+      const rm = el("button", "btn danger rm", "Remove"); rm.type = "button"; rm.disabled = ctx.min1 && ctx.list.length === 1;
       rm.setAttribute("aria-label", "Remove contact " + (i + 1));
-      rm.addEventListener("click", () => { formContacts.splice(i, 1); renderContactRows(); });
+      rm.addEventListener("click", () => { ctx.list.splice(i, 1); ctx.render(); });
       row.appendChild(rm);
       wrap.appendChild(row);
     });
@@ -426,6 +504,10 @@
   $("addContactBtn").addEventListener("click", () => {
     formContacts.push(blank()); renderContactRows();
     const last = formContacts.length - 1; $("c" + last + "-type").focus();
+  });
+  $("addKContactBtn").addEventListener("click", () => {
+    clientContacts.push(blank()); clientCtx.render();
+    const last = clientContacts.length - 1; $("k" + last + "-type").focus();
   });
 
   function openForm(p, opts) {
@@ -531,7 +613,7 @@
   let channel = null;
   async function load() {
     const [r, cr] = await Promise.all([sb.from(T).select("id,data"), sb.from("register_clients").select("id,name,data")]);
-    clients = cr.error ? [] : cr.data.map(x => ({ id: x.id, name: x.name, contacts: Array.isArray((x.data || {}).contacts) ? x.data.contacts : [] }));
+    clients = cr.error ? [] : cr.data.map(x => ({ id: x.id, name: x.name, data: x.data || {}, contacts: Array.isArray((x.data || {}).contacts) ? x.data.contacts : [] }));
     if (r.error) {
       loaded = true;
       $("empty").innerHTML = "<strong>Can't load projects</strong>Your login may not have access to the register. Ask an admin.";

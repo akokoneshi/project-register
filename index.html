@@ -150,6 +150,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .clist li { display: grid; grid-template-columns: 1.2fr 1fr 1.6fr 1fr; gap: 4px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: center; }
 .clist li:last-child { border-bottom: 0; }
 .nopm { color: var(--danger); font-weight: 600; }
+.btnrow { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 .tabs { display: flex; gap: 8px; }
 .tabs button { border: 1px solid var(--line); background: #fff; color: var(--kim-blue-dark); border-radius: 99px; padding: 8px 20px; font-weight: 600; cursor: pointer; }
 .tabs button[aria-selected="true"] { background: var(--kim-blue); border-color: var(--kim-blue); color: #fff; }
@@ -256,6 +257,24 @@ table.plain th { padding: 10px 14px; }
   </section>
 
   <section id="clientView" class="panel" hidden></section>
+
+  <form id="clientEdit" class="panel" hidden novalidate>
+    <h2>Edit client</h2>
+    <div class="grid">
+      <div class="field wide"><label for="k-name">Company name</label><input id="k-name" autocomplete="off" required></div>
+      <p class="notice wide" id="kNote" style="margin:0"></p>
+      <div class="sub wide"><span>Client contacts</span><small>Contacts that belong to the company itself, shown in its directory.</small></div>
+      <div class="wide" id="kContactRows"></div>
+      <div class="wide"><button type="button" id="addKContactBtn" class="btn">+ Add contact</button></div>
+    </div>
+    <p class="err" id="kErr" hidden></p>
+    <div class="actions">
+      <button type="button" id="kDelBtn" class="btn danger" hidden>Delete client</button>
+      <span class="spacer"></span>
+      <button type="button" id="kCancelBtn" class="btn">Cancel</button>
+      <button type="submit" id="kSaveBtn" class="btn primary">Save client</button>
+    </div>
+  </form>
 
   <section id="detail" class="panel" hidden></section>
 
