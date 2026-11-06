@@ -239,7 +239,13 @@ table.plain th { padding: 10px 14px; }
   <section id="clientsView" hidden>
     <div class="bar">
       <input id="cq" class="search" type="search" placeholder="Search clients, or any contact's name or email…" aria-label="Search clients and contacts">
+      <button id="addClientBtn" class="btn primary" type="button">+ Add client</button>
     </div>
+    <form id="addClientForm" class="panel" hidden novalidate>
+      <div class="field"><label for="newClient">Company name</label><input id="newClient" autocomplete="off" placeholder="e.g. Acme Mechanical, Inc."></div>
+      <p class="err" id="clientErr" hidden></p>
+      <div class="actions"><button type="button" id="cancelClientBtn" class="btn">Cancel</button><button type="submit" id="saveClientBtn" class="btn primary">Add client</button></div>
+    </form>
     <div class="tablebox">
       <table class="plain">
         <thead><tr><th>Client</th><th>Projects</th><th>Contacts</th></tr></thead>

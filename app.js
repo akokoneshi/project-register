@@ -7,7 +7,7 @@
 
   let projects = [], loaded = false, col = null, mode = "list";
   let editingId = null, viewingId = null, formContacts = [];
-  let clientKey = null, returnTo = null, clientQ = "";
+  let clientKey = null, returnTo = null, clientQ = "", clients = [];
   const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
   try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
   function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
@@ -30,22 +30,29 @@
   // Companies are derived from the projects' Customer field; each has a directory of the contacts used on its projects.
   function clientsData() {
     const map = new Map();
+    const addContact = (g, c, p) => {
+      if (!c.name && !c.email) return;
+      const ck = keyOf(c); let e = g.contacts.get(ck);
+      if (!e) { e = { name: c.name || "", email: c.email || "", phone: c.phone || "", types: new Set(), projects: [] }; g.contacts.set(ck, e); }
+      if (c.type) e.types.add(c.type);
+      if (!e.phone && c.phone) e.phone = c.phone;
+      if (!e.email && c.email) e.email = c.email;
+      if (!e.name && c.name) e.name = c.name;
+      if (p && !e.projects.includes(p)) e.projects.push(p);
+    };
+    clients.forEach(r => {
+      const k = (r.name || "").trim().toLowerCase(); if (!k) return;
+      const g = { key: k, name: r.name.trim(), record: r, t: "", projects: [], contacts: new Map() };
+      map.set(k, g);
+      r.contacts.forEach(c => addContact(g, c, null));
+    });
     projects.forEach(p => {
       const k = (p.customer || "").trim().toLowerCase(); if (!k) return;
       let g = map.get(k);
-      if (!g) { g = { key: k, name: p.customer.trim(), t: "", projects: [], contacts: new Map() }; map.set(k, g); }
+      if (!g) { g = { key: k, name: p.customer.trim(), record: null, t: "", projects: [], contacts: new Map() }; map.set(k, g); }
       g.projects.push(p);
-      if (String(p.updatedAt || "") >= g.t) { g.t = String(p.updatedAt || ""); g.name = p.customer.trim(); }
-      contactsOf(p).forEach(c => {
-        if (!c.name && !c.email) return;
-        const ck = keyOf(c); let e = g.contacts.get(ck);
-        if (!e) { e = { name: c.name || "", email: c.email || "", phone: c.phone || "", types: new Set(), projects: [] }; g.contacts.set(ck, e); }
-        if (c.type) e.types.add(c.type);
-        if (!e.phone && c.phone) e.phone = c.phone;
-        if (!e.email && c.email) e.email = c.email;
-        if (!e.name && c.name) e.name = c.name;
-        if (!e.projects.includes(p)) e.projects.push(p);
-      });
+      if (!g.record && String(p.updatedAt || "") >= g.t) { g.t = String(p.updatedAt || ""); g.name = p.customer.trim(); }
+      contactsOf(p).forEach(c => addContact(g, c, p));
     });
     return [...map.values()].sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
   }
@@ -147,7 +154,7 @@
     else empty.hidden = true;
 
     const dl = $("custList"); dl.textContent = "";
-    [...new Set(projects.map(p => p.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b)).forEach(v => { const o = document.createElement("option"); o.value = v; dl.appendChild(o); });
+    clientsData().map(g => g.name).forEach(v => { const o = document.createElement("option"); o.value = v; dl.appendChild(o); });
 
     if (mode === "view") renderDetail();
     else if (mode === "clients") renderClients();
@@ -263,6 +270,23 @@
   $("clientRows").addEventListener("click", e => { const tr = e.target.closest("tr"); if (tr) openClient(tr.dataset.key); });
   $("clientRows").addEventListener("keydown", e => { if (e.key === "Enter") { const tr = e.target.closest("tr"); if (tr) openClient(tr.dataset.key); } });
 
+  $("addClientBtn").addEventListener("click", () => { $("addClientForm").hidden = false; $("clientErr").hidden = true; $("newClient").value = ""; $("newClient").focus(); });
+  $("cancelClientBtn").addEventListener("click", () => { $("addClientForm").hidden = true; });
+  $("addClientForm").addEventListener("submit", async e => {
+    e.preventDefault();
+    const name = $("newClient").value.trim().replace(/\s+/g, " ");
+    const err = m => { $("clientErr").textContent = m; $("clientErr").hidden = false; };
+    if (!name) { err("Enter the company name."); return; }
+    const key = name.toLowerCase();
+    if (clientsData().some(g => g.key === key)) { err("That client already exists."); return; }
+    $("saveClientBtn").disabled = true;
+    try {
+      const r = await sb.from("register_clients").insert({ name }); if (r.error) throw r.error;
+      await load(); $("addClientForm").hidden = true; openClient(key);
+    } catch (ex) { err(ex && ex.code === "23505" ? "That client already exists." : "Couldn't add the client. Make sure the latest supabase.sql has been run, then try again."); }
+    finally { $("saveClientBtn").disabled = false; }
+  });
+
   function renderClient() {
     const g = clientsData().find(x => x.key === clientKey);
     if (!g) { showClients(); return; }
@@ -298,7 +322,7 @@
       list.forEach(x => {
         const li = document.createElement("li");
         const n = el("span"); n.appendChild(el("strong", "", x.name || x.email));
-        n.appendChild(el("small", "block", "On " + x.projects.map(p => p.job).join(", ")));
+        if (x.projects.length) n.appendChild(el("small", "block", "On " + x.projects.map(p => p.job).join(", ")));
         li.appendChild(n);
         const roles = el("span", "roles"); [...x.types].forEach(t => roles.appendChild(el("span", "chip type", t))); li.appendChild(roles);
         const m = el("span", "cmail");
@@ -324,7 +348,8 @@
       li.addEventListener("click", open); li.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
       pl.appendChild(li);
     });
-    box.appendChild(pl);
+    if (!g.projects.length) box.appendChild(el("p", "notice", "No projects for this client yet."));
+    else box.appendChild(pl);
   }
 
   // ---------- Edit / add form ----------
@@ -505,7 +530,8 @@
   };
   let channel = null;
   async function load() {
-    const r = await sb.from(T).select("id,data");
+    const [r, cr] = await Promise.all([sb.from(T).select("id,data"), sb.from("register_clients").select("id,name,data")]);
+    clients = cr.error ? [] : cr.data.map(x => ({ id: x.id, name: x.name, contacts: Array.isArray((x.data || {}).contacts) ? x.data.contacts : [] }));
     if (r.error) {
       loaded = true;
       $("empty").innerHTML = "<strong>Can't load projects</strong>Your login may not have access to the register. Ask an admin.";
@@ -516,7 +542,7 @@
   }
   function showGate(msg) {
     if (channel) { sb.removeChannel(channel); channel = null; }
-    projects = []; loaded = false;
+    projects = []; clients = []; loaded = false;
     $("app").hidden = true; $("gate").hidden = false;
     if (msg) $("gateMsg").textContent = msg;
   }
@@ -524,7 +550,7 @@
     $("gate").hidden = true; $("app").hidden = false;
     showList();
     await load();
-    if (!channel) channel = sb.channel("pr").on("postgres_changes", { event: "*", schema: "public", table: T }, load).subscribe();
+    if (!channel) channel = sb.channel("pr").on("postgres_changes", { event: "*", schema: "public", table: T }, load).on("postgres_changes", { event: "*", schema: "public", table: "register_clients" }, load).subscribe();
   }
   $("gate").addEventListener("submit", async e => {
     e.preventDefault();
