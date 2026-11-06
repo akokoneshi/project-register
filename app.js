@@ -1,6 +1,6 @@
 (async function () {
   const LOC = { CT: "Connecticut", WC: "Hudson Valley, NY" };
-  const TYPES = ["Project Manager", "Accounts Payable", "Superintendent", "Estimator", "Purchasing", "Owner / Other"];
+  const TYPES = ["Project Manager", "Assistant Project Manager", "Project Engineer", "Accounts Payable", "Superintendent", "Estimator", "Purchasing", "Owner / Other"];
   const $ = (id) => document.getElementById(id);
   const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
   const blank = () => ({ type: "", name: "", email: "", phone: "" });
