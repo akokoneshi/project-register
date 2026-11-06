@@ -25,7 +25,7 @@
 }
 * { box-sizing: border-box; }
 body {
-  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+  background: #0e2f52 linear-gradient(180deg, #0e2f52 0%, #163d66 100%) fixed; color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
   padding-left: max(16px, env(safe-area-inset-left, 0px));
   padding-right: max(16px, env(safe-area-inset-right, 0px));
   padding-block: 28px 48px;
@@ -35,8 +35,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 header { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 16px; }
-.eyebrow { font-family: var(--f-body); font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
-h1 { font-family: var(--f-display); font-weight: 700; color: var(--kim-ink); font-size: clamp(28px, 5vw, 38px); line-height: 1.05; margin: 0; text-wrap: balance; }
+.eyebrow { color: #a9c4e0 !important; font-family: var(--f-body); font-weight: 600; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 4px; }
+h1 { font-family: var(--f-display); font-weight: 700; color: #fff; font-size: clamp(28px, 5vw, 38px); line-height: 1.05; margin: 0; text-wrap: balance; }
 .counts { display: flex; gap: 8px; flex-wrap: wrap; }
 .count { display: flex; flex-direction: column; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--line); background: var(--surface); min-width: 108px; }
 .count b { font-family: var(--f-display); font-size: 24px; line-height: 1.1; font-variant-numeric: tabular-nums; }
@@ -103,9 +103,11 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .cmail span { overflow-wrap: anywhere; user-select: all; }
 .copy { border: 1px solid var(--line); background: var(--bg); color: var(--muted); font-size: 11px; padding: 1px 6px; border-radius: 4px; cursor: pointer; flex: none; }
 .copy:hover { color: var(--ink); }
-.empty { padding: 40px 20px; text-align: center; color: var(--muted); }
+.empty { background: var(--surface); padding: 40px 20px; text-align: center; color: var(--muted); }
 .empty strong { display: block; color: var(--ink); font-size: 16px; margin-bottom: 4px; }
-.notice { font-size: 13px; color: var(--muted); }
+.notice { font-size: 13px; color: #c5d6e8; }
+.panel .notice { color: var(--muted); }
+.notice .btn { color: var(--ink); }
 
 /* Phone: rows become cards */
 @media (max-width: 640px) {
@@ -137,7 +139,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 <div class="wrap" id="app" hidden>
   <header>
     <div>
-      <img src="assets/kim-logo.png" alt="Kim Industries" style="height:36px;width:auto;display:block;margin-bottom:10px">
+      <img src="assets/kim-logo.png" alt="Kim Industries" style="height:36px;width:auto;display:block;margin-bottom:12px;background:#fff;padding:6px 10px;border-radius:10px">
       <p class="eyebrow">Connecticut · Hudson Valley</p>
       <h1>Project Register</h1>
     </div>
