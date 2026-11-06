@@ -29,7 +29,7 @@
 }
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-#listView { display: flex; flex-direction: column; gap: 20px; }
+#listView, #clientsView { display: flex; flex-direction: column; gap: 20px; }
 .grid > .wide { grid-column: 1 / -1; }
 body {
   background: #e8f2fb; color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45;
@@ -128,7 +128,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
   td { padding: 0; border: 0; }
   td.c-job { grid-column: 1; }
   td.c-loc { grid-column: 2; grid-row: 1; text-align: right; }
-  td.c-name, td.c-cust, td.c-status, td.c-contacts { grid-column: 1 / -1; }
+  td.c-name, td.c-cust, td.c-status, td.c-contacts, td.c-cname { grid-column: 1 / -1; }
   td.c-cust { color: var(--muted); }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
@@ -146,7 +146,20 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .clist li { display: grid; grid-template-columns: 1.2fr 1fr 1.6fr 1fr; gap: 4px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: center; }
 .clist li:last-child { border-bottom: 0; }
 .nopm { color: var(--danger); font-weight: 600; }
-.crow .pick { grid-column: 1 / -1; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--kim-blue-dark); font-weight: 500; }
+.tabs { display: flex; gap: 8px; }
+.tabs button { border: 1px solid var(--line); background: #fff; color: var(--kim-blue-dark); border-radius: 99px; padding: 8px 20px; font-weight: 600; cursor: pointer; }
+.tabs button[aria-selected="true"] { background: var(--kim-blue); border-color: var(--kim-blue); color: #fff; }
+table.plain th { padding: 10px 14px; }
+.tablebox tbody tr[data-key] .pname { color: var(--kim-blue-dark); }
+.sugg { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 30; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px rgba(20,50,90,.18); max-height: 280px; overflow: auto; }
+.sopt { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.sopt:last-child { border-bottom: 0; }
+.sopt:hover, .sopt.on { background: var(--kim-blue-tint); }
+.sopt small { display: block; color: var(--muted); font-size: 12px; }
+.clist small.block { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; font-weight: 400; }
+.roles { display: flex; flex-wrap: wrap; gap: 4px; }
+.plist li { grid-template-columns: 110px 1fr auto auto; cursor: pointer; }
+.plist li:hover { background: var(--kim-blue-tint); }
 .chip.type { color: var(--kim-blue-dark); background: var(--kim-blue-tint); justify-self: start; }
 .fine { font-size: 12px; color: var(--muted); margin: 18px 0 0; }
 .crow { display: grid; grid-template-columns: 1fr 1fr 1.3fr 1fr auto; gap: 10px; align-items: end; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); margin-bottom: 10px; }
@@ -154,7 +167,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .clines div + div { margin-top: 2px; }
 .clines small { color: var(--muted); }
 @media (max-width: 760px) { .crow { grid-template-columns: 1fr 1fr; } .crow .rm { grid-column: 1 / -1; } }
-@media (max-width: 640px) { .clist li { grid-template-columns: 1fr; padding: 12px 14px; } }
+@media (max-width: 640px) { .clist li, .plist li { grid-template-columns: 1fr; padding: 12px 14px; } }
 
 </style>
 </head><body>
@@ -182,6 +195,11 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
       <div class="count"><b id="n-wc">–</b><span>Hudson Valley</span></div>
     </div>
   </header>
+
+  <nav class="tabs" id="tabs" aria-label="Sections">
+    <button type="button" data-tab="projects" aria-selected="true">Projects</button>
+    <button type="button" data-tab="clients" aria-selected="false">Clients</button>
+  </nav>
 
   <section id="listView">
     <div class="bar">
@@ -214,6 +232,21 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
     <p class="notice" id="notice"><button id="signOutBtn" class="btn" type="button" style="padding:2px 10px;margin-right:8px">Sign out</button>Tap any project to view it. Everyone with a Materials login sees the same register.</p>
   </section>
 
+  <section id="clientsView" hidden>
+    <div class="bar">
+      <input id="cq" class="search" type="search" placeholder="Search clients, or any contact's name or email…" aria-label="Search clients and contacts">
+    </div>
+    <div class="tablebox">
+      <table class="plain">
+        <thead><tr><th>Client</th><th>Projects</th><th>Contacts</th></tr></thead>
+        <tbody id="clientRows"></tbody>
+      </table>
+      <div class="empty" id="clientEmpty" hidden></div>
+    </div>
+  </section>
+
+  <section id="clientView" class="panel" hidden></section>
+
   <section id="detail" class="panel" hidden></section>
 
   <form id="form" class="panel" hidden novalidate>
@@ -229,7 +262,7 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
         <select id="f-status"><option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option></select></div>
       <div class="sub wide"><span>Contacts</span><small>Add at least one contact and choose what kind of contact they are.</small></div>
       <div class="wide" id="contactRows"></div>
-      <div class="wide"><button type="button" id="addContactBtn" class="btn">+ Add another contact</button> <small id="autofillNote" class="notice" style="color:var(--muted)" hidden>Accounts Payable filled in from this customer's earlier projects. Everything else is blank. Use “Pick a saved contact” on a row to reuse their other contacts.</small></div>
+      <div class="wide"><button type="button" id="addContactBtn" class="btn">+ Add another contact</button> <small id="autofillNote" class="notice" style="color:var(--muted)" hidden>Accounts Payable filled in from this customer's earlier projects. Everything else is blank. Start typing a contact's name to search existing contacts.</small></div>
       <div class="field wide"><label for="f-notes">Notes</label><textarea id="f-notes" placeholder="Optional"></textarea></div>
     </div>
     <datalist id="custList"></datalist>

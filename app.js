@@ -7,6 +7,7 @@
 
   let projects = [], loaded = false, col = null, mode = "list";
   let editingId = null, viewingId = null, formContacts = [];
+  let clientKey = null, returnTo = null, clientQ = "";
   const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
   try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
   function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
@@ -23,23 +24,56 @@
   const isPM = c => (c.type || "") === "Project Manager";
   // Project Managers always come first; everyone else keeps their saved order.
   const ordered = p => { const cs = contactsOf(p); return cs.filter(isPM).concat(cs.filter(c => !isPM(c))); };
-  const keyOf = c => (c.email || "").trim().toLowerCase() || ((c.name || "").trim().toLowerCase() + "|" + (c.type || ""));
+  const keyOf = c => (c.email || "").trim().toLowerCase() || (c.name || "").trim().toLowerCase();
   const sameCustomer = (p, cust) => (p.customer || "").trim().toLowerCase() === (cust || "").trim().toLowerCase();
   const recentFirst = (a, b) => String(b.updatedAt || "").localeCompare(String(a.updatedAt || ""));
-  // Every distinct contact stored on this customer's other projects (newest project first).
-  function savedContactsFor(cust, excludeId) {
-    if (!(cust || "").trim()) return [];
-    const seen = new Set(), out = [];
-    projects.filter(p => p.id !== excludeId && sameCustomer(p, cust)).sort(recentFirst).forEach(p =>
-      contactsOf(p).forEach(c => { if (!c.name) return; const k = keyOf(c); if (!seen.has(k)) { seen.add(k); out.push(c); } }));
-    return out;
+  // Companies are derived from the projects' Customer field; each has a directory of the contacts used on its projects.
+  function clientsData() {
+    const map = new Map();
+    projects.forEach(p => {
+      const k = (p.customer || "").trim().toLowerCase(); if (!k) return;
+      let g = map.get(k);
+      if (!g) { g = { key: k, name: p.customer.trim(), t: "", projects: [], contacts: new Map() }; map.set(k, g); }
+      g.projects.push(p);
+      if (String(p.updatedAt || "") >= g.t) { g.t = String(p.updatedAt || ""); g.name = p.customer.trim(); }
+      contactsOf(p).forEach(c => {
+        if (!c.name && !c.email) return;
+        const ck = keyOf(c); let e = g.contacts.get(ck);
+        if (!e) { e = { name: c.name || "", email: c.email || "", phone: c.phone || "", types: new Set(), projects: [] }; g.contacts.set(ck, e); }
+        if (c.type) e.types.add(c.type);
+        if (!e.phone && c.phone) e.phone = c.phone;
+        if (!e.email && c.email) e.email = c.email;
+        if (!e.name && c.name) e.name = c.name;
+        if (!e.projects.includes(p)) e.projects.push(p);
+      });
+    });
+    return [...map.values()].sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
+  }
+
+  // Type-ahead: existing contacts matching what is being typed, this customer's first, then other companies.
+  function suggestionsFor(q, current) {
+    const cust = $("f-cust").value;
+    const used = new Set(formContacts.filter(x => x !== current).map(keyOf));
+    const seen = new Map();
+    projects.slice().sort(recentFirst).forEach(p => contactsOf(p).forEach(x => {
+      if (!x.name || !(x.name + " " + x.email).toLowerCase().includes(q)) return;
+      const k = keyOf(x); if (used.has(k)) return;
+      const ck = k + "@" + (p.customer || "").trim().toLowerCase();
+      if (!seen.has(ck)) seen.set(ck, Object.assign({}, x, { customer: (p.customer || "").trim() }));
+    }));
+    const rank = s => (sameCustomer({ customer: s.customer }, cust) ? 0 : 10) + (s.name.toLowerCase().startsWith(q) ? 0 : 1);
+    return [...seen.values()].sort((x, y) => rank(x) - rank(y) || x.name.localeCompare(y.name)).slice(0, 8);
   }
 
   function setMode(m) {
     mode = m;
     $("listView").hidden = m !== "list";
+    $("clientsView").hidden = m !== "clients";
+    $("clientView").hidden = m !== "client";
     $("detail").hidden = m !== "view";
     $("form").hidden = m !== "edit";
+    $("tabs").hidden = !(m === "list" || m === "clients" || m === "client");
+    document.querySelectorAll("#tabs button").forEach(b => b.setAttribute("aria-selected", String((m === "list") === (b.dataset.tab === "projects"))));
     window.scrollTo(0, 0);
   }
 
@@ -65,7 +99,7 @@
     document.querySelectorAll("#locSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.loc === view.loc)));
     $("statusFilter").value = view.status;
     if ($("q").value !== view.q) $("q").value = view.q;
-    document.querySelectorAll("th").forEach(th => {
+    document.querySelectorAll("#listView th").forEach(th => {
       const on = th.dataset.k === view.sortK;
       th.setAttribute("aria-sort", on ? (view.sortDir > 0 ? "ascending" : "descending") : "none");
       th.querySelector(".arrow").textContent = on ? (view.sortDir > 0 ? "↑" : "↓") : "↕";
@@ -116,12 +150,14 @@
     [...new Set(projects.map(p => p.customer).filter(Boolean))].sort((a, b) => a.localeCompare(b)).forEach(v => { const o = document.createElement("option"); o.value = v; dl.appendChild(o); });
 
     if (mode === "view") renderDetail();
+    else if (mode === "clients") renderClients();
+    else if (mode === "client") renderClient();
   }
 
   $("locSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; view.loc = b.dataset.loc; saveView(); render(); });
   $("statusFilter").addEventListener("change", e => { view.status = e.target.value; saveView(); render(); });
   $("q").addEventListener("input", e => { view.q = e.target.value; render(); });
-  document.querySelectorAll("th button").forEach(b => b.addEventListener("click", () => {
+  document.querySelectorAll("#listView th button").forEach(b => b.addEventListener("click", () => {
     const k = b.parentElement.dataset.k;
     if (view.sortK === k) view.sortDir *= -1; else { view.sortK = k; view.sortDir = 1; }
     saveView(); render();
@@ -131,8 +167,13 @@
   $("addBtn").addEventListener("click", () => openForm(null));
 
   // ---------- Read-only detail page ----------
-  function openView(id) { viewingId = id; setMode("view"); renderDetail(); }
-  function showList() { viewingId = null; editingId = null; setMode("list"); render(); }
+  // `from` = where Back should return: null (project list) or { client: key } (that company's directory).
+  function openView(id, from) { if (from !== undefined) returnTo = from; viewingId = id; setMode("view"); renderDetail(); }
+  function showList() { viewingId = null; editingId = null; returnTo = null; setMode("list"); render(); }
+  function showClients() { clientKey = null; returnTo = null; editingId = null; setMode("clients"); renderClients(); }
+  function openClient(key) { clientKey = key; clientQ = ""; editingId = null; setMode("client"); renderClient(); }
+  function goBack() { if (returnTo && returnTo.client) openClient(returnTo.client); else showList(); }
+  document.querySelectorAll("#tabs button").forEach(b => b.addEventListener("click", () => { if (b.dataset.tab === "clients") showClients(); else showList(); }));
 
   function renderDetail() {
     const box = $("detail");
@@ -141,7 +182,8 @@
     box.textContent = "";
 
     const top = el("div", "detail-top");
-    const back = el("button", "btn", "← All projects"); back.type = "button"; back.addEventListener("click", showList);
+    const backName = returnTo && returnTo.client ? ((clientsData().find(g => g.key === returnTo.client) || {}).name || "client") : "All projects";
+    const back = el("button", "btn", "← " + backName); back.type = "button"; back.addEventListener("click", goBack);
     const edit = el("button", "btn primary", "Edit project"); edit.type = "button"; edit.addEventListener("click", () => openForm(p));
     top.append(back, edit);
     box.appendChild(top);
@@ -189,23 +231,150 @@
     if (p.updatedAt) box.appendChild(el("p", "fine", "Last updated " + new Date(p.updatedAt).toLocaleString()));
   }
 
+  // ---------- Clients tab ----------
+  const plural = (n, w) => n + " " + w + (n === 1 ? "" : "s");
+
+  function renderClients() {
+    const q = $("cq").value.trim().toLowerCase();
+    const tb = $("clientRows"); tb.textContent = "";
+    const all = clientsData();
+    let shown = 0;
+    all.forEach(g => {
+      const contacts = [...g.contacts.values()];
+      const nameHit = g.name.toLowerCase().includes(q);
+      const hits = q ? contacts.filter(x => (x.name + " " + x.email + " " + x.phone).toLowerCase().includes(q)) : [];
+      if (q && !nameHit && !hits.length) return;
+      shown++;
+      const tr = document.createElement("tr"); tr.tabIndex = 0; tr.dataset.key = g.key;
+      const cell = cls => { const td = document.createElement("td"); td.className = cls; tr.appendChild(td); return td; };
+      const c1 = cell("c-cname"); c1.appendChild(el("span", "pname", g.name));
+      if (q && hits.length) c1.appendChild(el("span", "note", "Contact: " + hits.slice(0, 3).map(x => x.name || x.email).join(", ") + (hits.length > 3 ? " +" + (hits.length - 3) : "")));
+      cell("c-n").textContent = plural(g.projects.length, "project");
+      cell("c-n").textContent = plural(contacts.length, "contact");
+      tb.appendChild(tr);
+    });
+    const empty = $("clientEmpty");
+    empty.hidden = shown > 0;
+    if (!loaded) empty.innerHTML = "<strong>Loading clients…</strong>";
+    else if (!all.length) empty.innerHTML = "<strong>No clients yet</strong>Clients appear here once you add a project with a customer.";
+    else if (!shown) empty.innerHTML = "<strong>No matches</strong>Try a company name, or a contact's name or email.";
+  }
+  $("cq").addEventListener("input", renderClients);
+  $("clientRows").addEventListener("click", e => { const tr = e.target.closest("tr"); if (tr) openClient(tr.dataset.key); });
+  $("clientRows").addEventListener("keydown", e => { if (e.key === "Enter") { const tr = e.target.closest("tr"); if (tr) openClient(tr.dataset.key); } });
+
+  function renderClient() {
+    const g = clientsData().find(x => x.key === clientKey);
+    if (!g) { showClients(); return; }
+    const box = $("clientView"); box.textContent = "";
+    const contacts = [...g.contacts.values()];
+
+    const top = el("div", "detail-top");
+    const back = el("button", "btn", "← All clients"); back.type = "button"; back.addEventListener("click", showClients);
+    const add = el("button", "btn primary", "+ Add project for " + g.name); add.type = "button";
+    add.addEventListener("click", () => openForm(null, { customer: g.name, from: { client: g.key } }));
+    top.append(back, add); box.appendChild(top);
+
+    const head = el("div", "detail-head");
+    head.appendChild(el("h2", "", g.name));
+    const meta = el("div", "meta");
+    meta.appendChild(el("span", "chip type", plural(g.projects.length, "project")));
+    meta.appendChild(el("span", "chip type", plural(contacts.length, "contact")));
+    head.appendChild(meta); box.appendChild(head);
+
+    box.appendChild(el("div", "sec-title", "Contact directory"));
+    const search = el("input", "search"); search.type = "search"; search.placeholder = "Search " + g.name + "’s contacts…";
+    search.setAttribute("aria-label", "Search this client's contacts"); search.value = clientQ; search.style.width = "100%"; search.style.marginBottom = "10px";
+    box.appendChild(search);
+    const host = el("div"); box.appendChild(host);
+
+    const fill = () => {
+      host.textContent = "";
+      const q = clientQ.trim().toLowerCase();
+      const list = contacts.filter(x => !q || (x.name + " " + x.email + " " + x.phone + " " + [...x.types].join(" ")).toLowerCase().includes(q))
+        .sort((x, y) => (y.types.has("Project Manager") ? 1 : 0) - (x.types.has("Project Manager") ? 1 : 0) || x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
+      if (!list.length) { host.appendChild(el("p", "notice", q ? "No contacts match." : "No contacts saved for this client yet.")); return; }
+      const ul = el("ul", "clist");
+      list.forEach(x => {
+        const li = document.createElement("li");
+        const n = el("span"); n.appendChild(el("strong", "", x.name || x.email));
+        n.appendChild(el("small", "block", "On " + x.projects.map(p => p.job).join(", ")));
+        li.appendChild(n);
+        const roles = el("span", "roles"); [...x.types].forEach(t => roles.appendChild(el("span", "chip type", t))); li.appendChild(roles);
+        const m = el("span", "cmail");
+        if (x.email) { const link = el("a", "", x.email); link.href = "mailto:" + x.email; link.style.overflowWrap = "anywhere"; m.append(link, copyButton(x.email)); } else m.textContent = "—";
+        li.appendChild(m);
+        li.appendChild(el("span", "", x.phone || "—"));
+        ul.appendChild(li);
+      });
+      host.appendChild(ul);
+    };
+    fill();
+    search.addEventListener("input", () => { clientQ = search.value; fill(); });
+
+    box.appendChild(el("div", "sec-title", "Projects"));
+    const pl = el("ul", "clist plist");
+    g.projects.slice().sort((x, y) => String(x.job).localeCompare(String(y.job), undefined, { numeric: true })).forEach(p => {
+      const li = document.createElement("li"); li.tabIndex = 0; li.setAttribute("role", "button");
+      li.appendChild(el("span", "job", p.job || "—"));
+      li.appendChild(el("strong", "", p.name || "Untitled"));
+      li.appendChild(el("span", "chip " + (p.location === "WC" ? "wc" : "ct"), LOC[p.location] || "—"));
+      const st = el("span", "status " + (p.status || ""), p.status || "—"); st.dataset.s = p.status || ""; li.appendChild(st);
+      const open = () => openView(p.id, { client: g.key });
+      li.addEventListener("click", open); li.addEventListener("keydown", e => { if (e.key === "Enter") open(); });
+      pl.appendChild(li);
+    });
+    box.appendChild(pl);
+  }
+
   // ---------- Edit / add form ----------
   const F = { job: "f-job", name: "f-name", customer: "f-cust", location: "f-loc", town: "f-town", status: "f-status", notes: "f-notes" };
+
+  function attachSuggest(inp, c) {
+    const host = inp.parentElement; host.style.position = "relative";
+    inp.setAttribute("aria-autocomplete", "list");
+    let box = null, items = [], idx = -1;
+    const close = () => { if (box) { box.remove(); box = null; } items = []; idx = -1; };
+    const mark = () => Array.from(box.children).forEach((b, k) => b.classList.toggle("on", k === idx));
+    const choose = s => {
+      const i = formContacts.indexOf(c);
+      c.name = s.name; c.email = s.email || ""; c.phone = s.phone || ""; if (!c.type && s.type) c.type = s.type;
+      close(); renderContactRows();
+      const next = $("c" + i + "-phone"); if (next) next.focus();
+    };
+    const refresh = () => {
+      close();
+      const q = inp.value.trim().toLowerCase(); if (!q) return;
+      items = suggestionsFor(q, c); if (!items.length) return;
+      box = el("div", "sugg"); box.setAttribute("role", "listbox");
+      box.addEventListener("mousedown", e => e.preventDefault());
+      items.forEach(s => {
+        const b = el("button", "sopt"); b.type = "button"; b.setAttribute("role", "option");
+        b.appendChild(el("strong", "", s.name));
+        const meta = [s.type, s.email, sameCustomer({ customer: s.customer }, $("f-cust").value) ? "" : s.customer].filter(Boolean).join(" · ");
+        if (meta) b.appendChild(el("small", "", meta));
+        b.addEventListener("click", () => choose(s));
+        box.appendChild(b);
+      });
+      host.appendChild(box);
+    };
+    inp.addEventListener("input", refresh);
+    inp.addEventListener("focus", () => { if (inp.value.trim()) refresh(); });
+    inp.addEventListener("blur", close);
+    inp.addEventListener("keydown", e => {
+      if (!box) return;
+      if (e.key === "ArrowDown") { e.preventDefault(); idx = Math.min(idx + 1, items.length - 1); mark(); }
+      else if (e.key === "ArrowUp") { e.preventDefault(); idx = Math.max(idx - 1, 0); mark(); }
+      else if (e.key === "Enter" && idx >= 0) { e.preventDefault(); choose(items[idx]); }
+      else if (e.key === "Escape") { e.stopPropagation(); close(); }
+    });
+  }
 
   function renderContactRows() {
     const wrap = $("contactRows");
     wrap.textContent = "";
     formContacts.forEach((c, i) => {
       const row = el("div", "crow");
-      const used = new Set(formContacts.map((x, j) => j === i ? "" : keyOf(x)));
-      const saved = savedContactsFor($("f-cust").value, editingId).filter(s => !used.has(keyOf(s)));
-      if (saved.length) {
-        const pick = el("select", "pick"); pick.setAttribute("aria-label", "Pick a saved contact for this customer");
-        const p0 = el("option", "", "Pick a saved contact from " + $("f-cust").value.trim() + "…"); p0.value = ""; pick.appendChild(p0);
-        saved.forEach((s, j) => { const o = el("option", "", s.name + (s.type ? " · " + s.type : "") + (s.email ? " · " + s.email : "")); o.value = String(j); pick.appendChild(o); });
-        pick.addEventListener("change", () => { if (pick.value === "") return; Object.assign(c, blank(), saved[+pick.value]); renderContactRows(); });
-        row.appendChild(pick);
-      }
       const field = (label, input) => { const f = el("div", "field"); const l = el("label", "", label); l.htmlFor = input.id; f.append(l, input); return f; };
       const mk = (key, id, type, ph, auto) => { const inp = el("input"); inp.id = id; inp.type = type; inp.value = c[key] || ""; if (ph) inp.placeholder = ph; inp.autocomplete = auto || "off"; inp.addEventListener("input", () => { c[key] = inp.value; }); return inp; };
       const sel = el("select"); sel.id = "c" + i + "-type";
@@ -213,12 +382,15 @@
       TYPES.forEach(t => { const o = el("option", "", t); o.value = t; sel.appendChild(o); });
       sel.value = c.type || "";
       sel.addEventListener("change", () => { c.type = sel.value; });
+      const nameIn = mk("name", "c" + i + "-name", "text", "Start typing to search existing contacts");
+      const emailIn = mk("email", "c" + i + "-email", "email", "name@company.com");
       row.append(
         field("Contact type", sel),
-        field("Name", mk("name", "c" + i + "-name", "text", "Full name")),
-        field("Email", mk("email", "c" + i + "-email", "email", "name@company.com")),
+        field("Name", nameIn),
+        field("Email", emailIn),
         field("Phone", mk("phone", "c" + i + "-phone", "tel", "Optional"))
       );
+      attachSuggest(nameIn, c); attachSuggest(emailIn, c);
       const rm = el("button", "btn danger rm", "Remove"); rm.type = "button"; rm.disabled = formContacts.length === 1;
       rm.setAttribute("aria-label", "Remove contact " + (i + 1));
       rm.addEventListener("click", () => { formContacts.splice(i, 1); renderContactRows(); });
@@ -231,7 +403,9 @@
     const last = formContacts.length - 1; $("c" + last + "-type").focus();
   });
 
-  function openForm(p) {
+  function openForm(p, opts) {
+    opts = opts || {};
+    if (!p) returnTo = opts.from || null;
     editingId = p ? p.id : null;
     $("formTitle").textContent = p ? "Edit project" : "New project";
     for (const k in F) $(F[k]).value = p ? (p[k] || "") : (k === "location" ? (view.loc === "WC" ? "WC" : "CT") : k === "status" ? "Active" : "");
@@ -240,15 +414,16 @@
     renderContactRows();
     $("delBtn").hidden = !p; disarm();
     $("formErr").hidden = true; $("autofillNote").hidden = true;
+    if (!p && opts.customer) { $("f-cust").value = opts.customer; applyAutofill(); }
     setMode("edit");
     $("f-job").focus();
   }
-  function closeForm() { if (editingId) openView(editingId); else showList(); }
+  function closeForm() { if (editingId) openView(editingId); else goBack(); }
   function showErr(msg) { $("formErr").textContent = msg; $("formErr").hidden = false; }
 
   // New project for a company we already have: fill in ONLY its Accounts Payable (invoicing) contact(s).
-  // Everything else stays blank; the company's other saved contacts are offered in each row's picker.
-  $("f-cust").addEventListener("change", () => {
+  // Everything else stays blank; other saved contacts are found by typing a name in a contact row, or in the Clients tab.
+  function applyAutofill() {
     const cust = $("f-cust").value.trim(); if (!cust) return;
     const untouched = formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type;
     let filled = false;
@@ -262,7 +437,8 @@
     }
     renderContactRows();
     $("autofillNote").hidden = !filled;
-  });
+  }
+  $("f-cust").addEventListener("change", applyAutofill);
 
   $("cancelBtn").addEventListener("click", closeForm);
 
