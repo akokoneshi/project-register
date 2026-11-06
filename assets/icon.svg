@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#163d66"/><stop offset="1" stop-color="#0e2f52"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <!-- register card -->
+  <rect x="104" y="84" width="304" height="344" rx="28" fill="#ffffff"/>
+  <path d="M104 112a28 28 0 0 1 28-28h248a28 28 0 0 1 28 28v52H104z" fill="#1b75bc"/>
+  <!-- ribbon -->
+  <path d="M338 84h44v92l-22-16-22 16z" fill="#ed1c24"/>
+  <!-- contact rows -->
+  <g fill="#1b75bc"><circle cx="156" cy="228" r="20"/><circle cx="156" cy="298" r="20"/><circle cx="156" cy="368" r="20"/></g>
+  <g fill="#c9dcef"><rect x="194" y="214" width="170" height="28" rx="14"/><rect x="194" y="284" width="140" height="28" rx="14"/><rect x="194" y="354" width="156" height="28" rx="14"/></g>
+</svg>
