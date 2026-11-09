@@ -6,19 +6,36 @@
   const blank = () => ({ type: "", name: "", email: "", phone: "" });
 
   let projects = [], loaded = false, col = null, mode = "list";
-  let editingId = null, viewingId = null, formContacts = [];
+  let editingId = null, viewingId = null, formContacts = [], formAuto = false;
   let clientKey = null, returnTo = null, clientQ = "", clients = [], clientContacts = [], editingClient = null;
   const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
   try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
   function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
 
   // Projects saved before contacts existed only have PM / AP fields: show them as contacts.
-  function contactsOf(p) {
+  function rawContacts(p) {
     if (Array.isArray(p.contacts)) return p.contacts;
     const out = [];
     if (p.pmName || p.pmEmail) out.push({ type: "Project Manager", name: p.pmName || "", email: p.pmEmail || "", phone: "" });
     if (p.apName || p.apEmail) out.push({ type: "Accounts Payable", name: p.apName || "", email: p.apEmail || "", phone: "" });
     return out;
+  }
+  // The project's contacts as shown everywhere. When the project follows its client's invoicing contact (p.autoInvoicing),
+  // that client's CURRENT invoicing contact is added live, so changing it on the client updates every project at once.
+  function contactsOf(p) {
+    const base = rawContacts(p);
+    if (!p.autoInvoicing) return base;
+    const live = clientInvoicing(p.customer).filter(x => !base.some(c => (c.email && c.email.toLowerCase() === (x.email || "").toLowerCase()) || (!c.email && c.name && c.name.toLowerCase() === (x.name || "").toLowerCase())));
+    return base.concat(live.map(x => Object.assign({}, x, { auto: true })));
+  }
+  // The client's own invoicing contact (flagged "Invoicing", else its Accounts Payable contacts), as Accounts Payable.
+  function clientInvoicing(cust) {
+    const k = (cust || "").trim().toLowerCase(); if (!k) return [];
+    const rec = clients.find(r => (r.name || "").trim().toLowerCase() === k); if (!rec) return [];
+    const asAP = c => ({ type: "Accounts Payable", name: c.name || "", email: c.email || "", phone: c.phone || "" });
+    const flagged = rec.contacts.filter(c => c.invoicing);
+    if (flagged.length) return flagged.slice(0, 1).map(asAP);
+    return rec.contacts.filter(c => c.type === "Accounts Payable").map(asAP);
   }
 
   const isPM = c => (c.type || "") === "Project Manager";
@@ -63,15 +80,9 @@
   function invoicingContactsFor(cust) {
     const k = (cust || "").trim().toLowerCase(); if (!k) return [];
     const asAP = c => ({ type: "Accounts Payable", name: c.name || "", email: c.email || "", phone: c.phone || "" });
-    const rec = clients.find(r => (r.name || "").trim().toLowerCase() === k);
-    if (rec) {
-      const flagged = rec.contacts.filter(c => c.invoicing);
-      if (flagged.length) return flagged.slice(0, 1).map(asAP);
-      const ap = rec.contacts.filter(c => c.type === "Accounts Payable");
-      if (ap.length) return ap.map(asAP);
-    }
-    const prev = projects.filter(p => sameCustomer(p, cust) && contactsOf(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
-    return prev ? contactsOf(prev).filter(c => c.type === "Accounts Payable").map(asAP) : [];
+    const own = clientInvoicing(cust); if (own.length) return own;
+    const prev = projects.filter(p => sameCustomer(p, cust) && rawContacts(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
+    return prev ? rawContacts(prev).filter(c => c.type === "Accounts Payable").map(asAP) : [];
   }
 
   // Type-ahead: existing contacts matching what is being typed, this customer's first, then other companies.
@@ -247,7 +258,7 @@
     cs.forEach(c => {
       const li = document.createElement("li");
       li.appendChild(el("strong", "", c.name || "—"));
-      li.appendChild(el("span", "chip type", c.type || "Contact"));
+      li.appendChild(el("span", "chip type", (c.type || "Contact") + (c.auto ? " · from client" : "")));
       const m = el("span", "cmail");
       if (c.email) {
         const link = el("a", "", c.email); link.href = "mailto:" + c.email; link.style.overflowWrap = "anywhere";
@@ -467,7 +478,7 @@
       seenJobs.add(d.job.toLowerCase());
       const g = byKey.get(d.customer.toLowerCase());
       if (g) d.customer = g.name; else item.isNew = true;     // use the client's own spelling
-      item.inv = g ? invoicingContactsFor(g.name) : [];
+      item.inv = g ? clientInvoicing(g.name) : [];
       return item;
     });
     renderImportPreview();
@@ -503,7 +514,7 @@
     go.addEventListener("click", async () => {
       go.disabled = true; err.hidden = true;
       const now = new Date().toISOString();
-      const recs = ready.map(i => ({ data: Object.assign({}, i.data, { contacts: i.inv, updatedAt: now }) }));
+      const recs = ready.map(i => ({ data: Object.assign({}, i.data, { contacts: [], autoInvoicing: true, updatedAt: now }) }));
       try {
         for (let k = 0; k < recs.length; k += 200) { const r = await sb.from(T).insert(recs.slice(k, k + 200)); if (r.error) throw r.error; }
         await load(); showList();
@@ -584,7 +595,23 @@
   // Contact-row editor shared by the project form (ids c0-…) and the client form (ids k0-…).
   const projCtx = { wrap: null, get list() { return formContacts; }, pre: "c", min1: true, cust: () => $("f-cust").value, render: () => renderEditor(projCtx) };
   const clientCtx = { wrap: null, get list() { return clientContacts; }, pre: "k", min1: false, invoicing: true, cust: () => $("k-name").value, render: () => renderEditor(clientCtx) };
-  const renderContactRows = () => renderEditor(projCtx);
+  const renderContactRows = () => { renderEditor(projCtx); renderAutoBox(); };
+  function renderAutoBox() {
+    const box = $("autoInvBox"); box.textContent = "";
+    const cust = $("f-cust").value.trim(), cur = clientInvoicing(cust);
+    const lab = el("label", "invrow"); const cb = el("input"); cb.type = "checkbox"; cb.checked = formAuto; cb.id = "f-auto";
+    lab.append(cb, document.createTextNode(" Use the client's invoicing contact: " + (cur.length ? cur[0].name + (cur[0].email ? " (" + cur[0].email + ")" : "") + ". Changing it on the client updates this project too." : "none is set for this client yet. When one is set, it will appear here automatically.")));
+    cb.addEventListener("change", () => {
+      if (!cb.checked && formAuto && cur.length && !formContacts.some(c => (c.email || "").toLowerCase() === (cur[0].email || "").toLowerCase() && c.name)) {
+        // switching off: keep today's invoicing contact as this project's own, editable contact
+        const untouched = formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type;
+        if (untouched) formContacts = [];
+        formContacts.push(Object.assign(blank(), cur[0]));
+      }
+      formAuto = cb.checked; renderContactRows();
+    });
+    box.appendChild(lab);
+  }
 
   function attachSuggest(inp, c, ctx) {
     const host = inp.parentElement; host.style.position = "relative";
@@ -676,7 +703,8 @@
     editingId = p ? p.id : null;
     $("formTitle").textContent = p ? "Edit project" : "New project";
     for (const k in F) $(F[k]).value = p ? (p[k] || "") : (k === "location" ? (view.loc === "WC" ? "WC" : "CT") : k === "status" ? "Active" : "");
-    formContacts = p ? contactsOf(p).map(c => Object.assign(blank(), c)) : [];
+    formContacts = p ? rawContacts(p).map(c => Object.assign(blank(), c)) : [];
+    formAuto = p ? !!p.autoInvoicing : true;       // new projects follow the client's invoicing contact
     if (!formContacts.length) formContacts.push(blank());
     renderContactRows();
     $("delBtn").hidden = !p; disarm();
@@ -694,11 +722,12 @@
     const cust = $("f-cust").value.trim(); if (!cust) return;
     const untouched = formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type;
     let filled = false;
-    if (!editingId && untouched) {
-      const ap = invoicingContactsFor(cust);
+    if (!editingId && untouched && !clientInvoicing(cust).length) {
+      const ap = invoicingContactsFor(cust);   // no invoicing contact on the client: borrow one from its earlier projects
       if (ap.length) { formContacts = ap.map(x => Object.assign(blank(), x)).concat([blank()]); filled = true; }
     }
     if (filled) renderContactRows();   // only rebuild the rows when something was filled in, so a click into a contact field is never lost
+    else renderAutoBox();
     $("autofillNote").hidden = !filled;
   }
   $("f-cust").addEventListener("change", applyAutofill);
@@ -714,7 +743,7 @@
     const contacts = formContacts
       .map(c => ({ type: (c.type || "").trim(), name: (c.name || "").trim(), email: (c.email || "").trim(), phone: (c.phone || "").trim() }))
       .filter(c => c.type || c.name || c.email || c.phone);
-    if (!contacts.length) { showErr("Add at least one contact."); return; }
+    if (!contacts.length && !(formAuto && clientInvoicing(data.customer).length)) { showErr("Add at least one contact."); return; }
     for (let i = 0; i < contacts.length; i++) {
       const c = contacts[i], n = "Contact " + (i + 1);
       if (!c.name) { showErr(n + " needs a name."); return; }
@@ -727,6 +756,7 @@
 
     contacts.sort((x, y) => (isPM(y) ? 1 : 0) - (isPM(x) ? 1 : 0));
     data.contacts = contacts;
+    data.autoInvoicing = !!formAuto;
     data.updatedAt = new Date().toISOString();
     $("saveBtn").disabled = true;
     try {
