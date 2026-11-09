@@ -165,6 +165,14 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .tabs button[aria-selected="true"] { background: var(--kim-blue); border-color: var(--kim-blue); color: #fff; }
 table.plain th { padding: 10px 14px; }
 .tablebox tbody tr[data-key] .pname { color: var(--kim-blue-dark); }
+.cfwrap { position: relative; }
+.cfpanel { position: absolute; z-index: 40; top: calc(100% + 6px); left: 0; width: 320px; max-width: calc(100vw - 32px); background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px rgba(20,50,90,.18); padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+.cfpanel input[type=search] { width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; font: inherit; }
+#cfList { max-height: 300px; overflow: auto; display: flex; flex-direction: column; }
+#cfList label { display: flex; gap: 8px; align-items: center; padding: 6px 4px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+#cfList label:hover { background: var(--kim-blue-tint); }
+#cfList label span.n { margin-left: auto; color: var(--muted); font-size: 12px; }
+.cfactions { display: flex; justify-content: flex-end; }
 .sugg { position: absolute; left: 0; right: 0; top: calc(100% + 2px); z-index: 30; background: #fff; border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 6px 20px rgba(20,50,90,.18); max-height: 280px; overflow: auto; }
 .sopt { display: block; width: 100%; text-align: left; border: 0; background: none; padding: 9px 12px; cursor: pointer; border-bottom: 1px solid var(--line); }
 .sopt:last-child { border-bottom: 0; }
@@ -222,7 +230,14 @@ table.plain th { padding: 10px 14px; }
         <button type="button" data-loc="CT" aria-pressed="false">Connecticut</button>
         <button type="button" data-loc="WC" aria-pressed="false">Hudson Valley</button>
       </div>
-      <select id="clientFilter" class="btn" aria-label="Filter by client"></select>
+      <div class="cfwrap" id="cfWrap">
+        <button type="button" id="cfBtn" class="btn" aria-haspopup="true" aria-expanded="false">All clients ▾</button>
+        <div id="cfPanel" class="cfpanel" hidden>
+          <input id="cfSearch" type="search" placeholder="Find a client…" aria-label="Find a client" autocomplete="off">
+          <div id="cfList" role="group" aria-label="Clients"></div>
+          <div class="cfactions"><button type="button" id="cfClear" class="btn">Show all clients</button></div>
+        </div>
+      </div>
       <select id="statusFilter" class="btn" aria-label="Filter by status">
         <option value="">Any status</option>
         <option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option>
