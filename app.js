@@ -8,7 +8,7 @@
   let projects = [], loaded = false, col = null, mode = "list";
   let editingId = null, viewingId = null, formContacts = [], formAuto = false;
   let clientKey = null, returnTo = null, clientQ = "", clients = [], clientContacts = [], editingClient = null;
-  const view = { loc: "all", status: "", q: "", sortK: "job", sortDir: 1 };
+  const view = { loc: "all", status: "", client: "", q: "", sortK: "job", sortDir: 1 };
   try { const s = JSON.parse(localStorage.getItem("pr-view") || "null"); if (s) Object.assign(view, s); } catch (e) {}
   function saveView() { try { localStorage.setItem("pr-view", JSON.stringify(view)); } catch (e) {} }
 
@@ -138,6 +138,19 @@
 
     document.querySelectorAll("#locSeg button").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.loc === view.loc)));
     $("statusFilter").value = view.status;
+    // Client filter: every company that has at least one project, with its count.
+    const cf = $("clientFilter"), counts = new Map();
+    projects.forEach(p => { const k = (p.customer || "").trim().toLowerCase(); if (!k) return; const e = counts.get(k) || { name: p.customer.trim(), n: 0 }; e.n++; counts.set(k, e); });
+    if (view.client && !counts.has(view.client) && loaded) view.client = "";
+    const opts = [...counts.entries()].sort((x, y) => x[1].name.localeCompare(y[1].name, undefined, { sensitivity: "base" }));
+    const sig = view.client + "|" + opts.map(([k, e]) => k + e.n).join(",");
+    if (cf.dataset.sig !== sig) {
+      cf.textContent = "";
+      const all = el("option", "", "All clients"); all.value = ""; cf.appendChild(all);
+      opts.forEach(([k, e]) => { const o = el("option", "", e.name + " (" + e.n + ")"); o.value = k; cf.appendChild(o); });
+      cf.dataset.sig = sig;
+    }
+    cf.value = view.client;
     if ($("q").value !== view.q) $("q").value = view.q;
     document.querySelectorAll("#listView th").forEach(th => {
       const on = th.dataset.k === view.sortK;
@@ -151,6 +164,7 @@
     const list = projects.filter(p =>
       (view.loc === "all" || p.location === view.loc) &&
       (!view.status || p.status === view.status) &&
+      (!view.client || (p.customer || "").trim().toLowerCase() === view.client) &&
       (!q || hay(p).includes(q))
     ).sort((a, b) => String(sortVal(a, view.sortK)).localeCompare(String(sortVal(b, view.sortK)), undefined, { numeric: true, sensitivity: "base" }) * view.sortDir);
 
@@ -185,7 +199,7 @@
     const empty = $("empty");
     if (!loaded) { empty.hidden = false; }
     else if (!projects.length) { empty.hidden = false; empty.innerHTML = "<strong>No projects yet</strong>Use “+ Add project” to enter your first job."; }
-    else if (!list.length) { empty.hidden = false; empty.innerHTML = "<strong>No matches</strong>Try another location, status or search."; }
+    else if (!list.length) { empty.hidden = false; empty.innerHTML = "<strong>No matches</strong>Try another location, client, status or search."; }
     else empty.hidden = true;
 
     const dl = $("custList"); dl.textContent = "";
@@ -197,6 +211,7 @@
   }
 
   $("locSeg").addEventListener("click", e => { const b = e.target.closest("button"); if (!b) return; view.loc = b.dataset.loc; saveView(); render(); });
+  $("clientFilter").addEventListener("change", e => { view.client = e.target.value; saveView(); render(); });
   $("statusFilter").addEventListener("change", e => { view.status = e.target.value; saveView(); render(); });
   $("q").addEventListener("input", e => { view.q = e.target.value; render(); });
   document.querySelectorAll("#listView th button").forEach(b => b.addEventListener("click", () => {
