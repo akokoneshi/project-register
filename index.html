@@ -150,6 +150,15 @@ tbody tr:hover td { background: color-mix(in srgb, var(--bg) 70%, var(--surface)
 .clist li { display: grid; grid-template-columns: 1.2fr 1fr 1.6fr 1fr; gap: 4px 14px; padding: 10px 14px; border-bottom: 1px solid var(--line); align-items: center; }
 .clist li:last-child { border-bottom: 0; }
 .nopm { color: var(--danger); font-weight: 600; }
+.btn.small { padding: 4px 10px; font-size: 12px; white-space: nowrap; }
+.btn.small.on { background: var(--kim-blue-tint); border-color: var(--kim-blue); color: var(--kim-blue-dark); font-weight: 600; }
+.invrow { grid-column: 1 / -1; font-size: 13px; color: var(--muted); display: flex; gap: 6px; align-items: center; cursor: pointer; }
+.clist li { grid-template-columns: 1.2fr 1fr 1.6fr 1fr auto; }
+.imp-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 10px; }
+.imp-table th, .imp-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.imp-table th { background: var(--kim-blue-tint); color: var(--kim-blue-dark); font-size: 11px; letter-spacing: .05em; text-transform: uppercase; }
+.imp-sum { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
+.skip { color: var(--danger); }
 .btnrow { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 .tabs { display: flex; gap: 8px; }
 .tabs button { border: 1px solid var(--line); background: #fff; color: var(--kim-blue-dark); border-radius: 99px; padding: 8px 20px; font-weight: 600; cursor: pointer; }
@@ -218,6 +227,7 @@ table.plain th { padding: 10px 14px; }
         <option>Active</option><option>Bidding</option><option>On hold</option><option>Complete</option>
       </select>
       <input id="q" class="search" type="search" placeholder="Search job #, project, customer, contact…" aria-label="Search projects">
+      <button id="importBtn" class="btn" type="button">Import projects</button>
       <button id="addBtn" class="btn primary" type="button">+ Add project</button>
     </div>
     <div class="tablebox">
@@ -235,6 +245,14 @@ table.plain th { padding: 10px 14px; }
       <div class="empty" id="empty"><strong>Loading projects…</strong>Your saved projects will appear here.</div>
     </div>
     <p class="notice" id="notice"><button id="signOutBtn" class="btn" type="button" style="padding:2px 10px;margin-right:8px">Sign out</button>Tap any project to view it. Everyone with a Materials login sees the same register.</p>
+  </section>
+
+  <section id="importView" class="panel" hidden>
+    <div class="detail-top"><button id="impBack" class="btn" type="button">← All projects</button></div>
+    <div class="detail-head"><h2>Import projects</h2></div>
+    <p class="notice" style="margin:8px 0 14px">Upload a CSV file (in Excel: File → Save As → CSV). The first row must be column headers. Recognised columns: <b>Job #</b>, <b>Project</b>, <b>Customer</b> (these three are required), Location, Status, Estimate #, Bid #, Town / site, Notes. Each project is matched to a client by its Customer name, and that client's <b>invoicing contact</b> is added automatically. Jobs that already exist are skipped.</p>
+    <input id="impFile" type="file" accept=".csv,.tsv,.txt,text/csv">
+    <div id="impOut"></div>
   </section>
 
   <section id="clientsView" hidden>

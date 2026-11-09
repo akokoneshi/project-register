@@ -57,6 +57,23 @@
     return [...map.values()].sort((x, y) => x.name.localeCompare(y.name, undefined, { sensitivity: "base" }));
   }
 
+  // The contact(s) that are added automatically to a new or imported project for this company, as Accounts Payable.
+  // Order of preference: the contact designated "Invoicing" on the client > the client's own Accounts Payable contacts >
+  // the Accounts Payable contact(s) on the client's most recent project that has one.
+  function invoicingContactsFor(cust) {
+    const k = (cust || "").trim().toLowerCase(); if (!k) return [];
+    const asAP = c => ({ type: "Accounts Payable", name: c.name || "", email: c.email || "", phone: c.phone || "" });
+    const rec = clients.find(r => (r.name || "").trim().toLowerCase() === k);
+    if (rec) {
+      const flagged = rec.contacts.filter(c => c.invoicing);
+      if (flagged.length) return flagged.slice(0, 1).map(asAP);
+      const ap = rec.contacts.filter(c => c.type === "Accounts Payable");
+      if (ap.length) return ap.map(asAP);
+    }
+    const prev = projects.filter(p => sameCustomer(p, cust) && contactsOf(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
+    return prev ? contactsOf(prev).filter(c => c.type === "Accounts Payable").map(asAP) : [];
+  }
+
   // Type-ahead: existing contacts matching what is being typed, this customer's first, then other companies.
   function suggestionsFor(q, current, ctx) {
     const cust = ctx.cust();
@@ -80,6 +97,7 @@
     $("clientsView").hidden = m !== "clients";
     $("clientView").hidden = m !== "client";
     $("clientEdit").hidden = m !== "clientedit";
+    $("importView").hidden = m !== "import";
     $("detail").hidden = m !== "view";
     $("form").hidden = m !== "edit";
     $("tabs").hidden = !(m === "list" || m === "clients" || m === "client");
@@ -292,6 +310,25 @@
     finally { $("saveClientBtn").disabled = false; }
   });
 
+  async function setInvoicing(g, x, unset, msg) {
+    const list = (g.record ? g.record.contacts : []).map(c => Object.assign({}, c));
+    const k = keyOf(x);
+    let hit = list.find(c => keyOf(c) === k);
+    list.forEach(c => { delete c.invoicing; });
+    if (!unset) {
+      if (!hit) { hit = { name: x.name, email: x.email, phone: x.phone }; list.push(hit); }   // a contact that so far only lives on a project
+      hit.invoicing = true;
+    }
+    msg.hidden = true;
+    try {
+      const r = g.record
+        ? await sb.from("register_clients").update({ data: Object.assign({}, g.record.data, { contacts: list }) }).eq("id", g.record.id)
+        : await sb.from("register_clients").insert({ name: g.name, data: { contacts: list } });
+      if (r.error) throw r.error;
+      await load();
+    } catch (ex) { msg.textContent = "Couldn't save the invoicing contact. Check your connection and try again."; msg.hidden = false; }
+  }
+
   function renderClient() {
     const g = clientsData().find(x => x.key === clientKey);
     if (!g) { showClients(); return; }
@@ -313,7 +350,10 @@
     meta.appendChild(el("span", "chip type", plural(contacts.length, "contact")));
     head.appendChild(meta); box.appendChild(head);
 
+    const msg = el("p", "err"); msg.hidden = true;
     box.appendChild(el("div", "sec-title", "Contact directory"));
+    box.appendChild(el("p", "notice", "The invoicing contact is added automatically (as Accounts Payable) to every new or imported project for this client.")).style.margin = "0 0 10px";
+    box.appendChild(msg);
     const search = el("input", "search"); search.type = "search"; search.placeholder = "Search " + g.name + "’s contacts…";
     search.setAttribute("aria-label", "Search this client's contacts"); search.value = clientQ; search.style.width = "100%"; search.style.marginBottom = "10px";
     box.appendChild(search);
@@ -337,6 +377,11 @@
         if (x.email) { const link = el("a", "", x.email); link.href = "mailto:" + x.email; link.style.overflowWrap = "anywhere"; m.append(link, copyButton(x.email)); } else m.textContent = "—";
         li.appendChild(m);
         li.appendChild(el("span", "", x.phone || "—"));
+        const isInv = !!(g.record && g.record.contacts.some(c => c.invoicing && keyOf(c) === keyOf(x)));
+        const ib = el("button", isInv ? "btn small on" : "btn small", isInv ? "★ Invoicing contact" : "Set as invoicing"); ib.type = "button";
+        ib.title = isInv ? "Click to clear" : "Automatically add this contact to new and imported projects for " + g.name;
+        ib.addEventListener("click", () => setInvoicing(g, x, isInv, msg));
+        li.appendChild(ib);
         ul.appendChild(li);
       });
       host.appendChild(ul);
@@ -358,6 +403,113 @@
     });
     if (!g.projects.length) box.appendChild(el("p", "notice", "No projects for this client yet."));
     else box.appendChild(pl);
+  }
+
+  // ---------- Import projects from a CSV ----------
+  const FIELD_ALIASES = {
+    job: ["job", "jobnumber", "jobno", "jobnum", "jobid"],
+    name: ["project", "projectname", "name", "jobname", "description"],
+    customer: ["customer", "customername", "client", "clientname", "company", "contractor", "gc"],
+    location: ["location", "region", "state", "division", "office"],
+    status: ["status", "jobstatus"],
+    estimateNo: ["estimate", "estimatenumber", "estimateno", "estimatenum", "est", "estno"],
+    bidNo: ["bid", "bidnumber", "bidno", "bidnum"],
+    town: ["town", "site", "townsite", "city", "jobsite", "address", "sitelocation"],
+    notes: ["notes", "note", "comments", "comment"]
+  };
+  const STATUSES = ["Active", "Bidding", "On hold", "Complete"];
+
+  function parseCSV(text) {
+    text = text.replace(/^\uFEFF/, "");
+    const first = text.split(/\r?\n/, 1)[0];
+    const delim = [",", ";", "\t"].map(d => [d, first.split(d).length]).sort((x, y) => y[1] - x[1])[0][0];
+    const rows = []; let row = [], cur = "", q = false;
+    for (let i = 0; i < text.length; i++) {
+      const ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += ch; }
+      else if (ch === '"') q = true;
+      else if (ch === delim) { row.push(cur); cur = ""; }
+      else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(cur); cur = ""; rows.push(row); row = []; }
+      else cur += ch;
+    }
+    if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter(r => r.some(c => c.trim() !== ""));
+  }
+
+  let importItems = [];
+  function showImport() { importItems = []; $("impFile").value = ""; $("impOut").textContent = ""; setMode("import"); }
+  $("importBtn").addEventListener("click", showImport);
+  $("impBack").addEventListener("click", showList);
+
+  $("impFile").addEventListener("change", async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const out = $("impOut"); out.textContent = "";
+    const rows = parseCSV(await f.text());
+    if (rows.length < 2) { out.appendChild(el("p", "err", "That file has no data rows. The first row must be column headers.")); return; }
+    const norm = h => h.toLowerCase().replace(/[^a-z0-9]/g, "");
+    const idx = {};
+    rows[0].forEach((h, i) => { const n = norm(h); for (const f2 in FIELD_ALIASES) if (!(f2 in idx) && FIELD_ALIASES[f2].includes(n)) { idx[f2] = i; break; } });
+    const missing = ["job", "name", "customer"].filter(k => !(k in idx));
+    if (missing.length) {
+      out.appendChild(el("p", "err", "Couldn't find a column for: " + missing.map(k => ({ job: "Job #", name: "Project", customer: "Customer" })[k]).join(", ") + ". Found columns: " + rows[0].join(", ")));
+      return;
+    }
+    const get = (r, k) => (k in idx ? (r[idx[k]] || "") : "").trim().replace(/\s+/g, " ");
+    const byKey = new Map(clientsData().map(g => [g.key, g]));
+    const seenJobs = new Set(projects.map(p => (p.job || "").toLowerCase()));
+    importItems = rows.slice(1).map((r, n) => {
+      const d = { job: get(r, "job"), name: get(r, "name"), customer: get(r, "customer"), town: get(r, "town"), notes: get(r, "notes"), estimateNo: get(r, "estimateNo"), bidNo: get(r, "bidNo") };
+      const loc = get(r, "location"); d.location = /ny|hudson|hv|wc|westchester/i.test(loc) ? "WC" : "CT";
+      d.status = STATUSES.find(x => x.toLowerCase() === get(r, "status").toLowerCase()) || "Active";
+      const item = { line: n + 2, data: d, ok: true, reason: "", inv: [], isNew: false };
+      if (!d.job || !d.name || !d.customer) { item.ok = false; item.reason = "Missing " + [!d.job && "job #", !d.name && "project", !d.customer && "customer"].filter(Boolean).join(", "); return item; }
+      if (seenJobs.has(d.job.toLowerCase())) { item.ok = false; item.reason = "Job # " + d.job + " already exists"; return item; }
+      seenJobs.add(d.job.toLowerCase());
+      const g = byKey.get(d.customer.toLowerCase());
+      if (g) d.customer = g.name; else item.isNew = true;     // use the client's own spelling
+      item.inv = g ? invoicingContactsFor(g.name) : [];
+      return item;
+    });
+    renderImportPreview();
+  });
+
+  function renderImportPreview() {
+    const out = $("impOut"); out.textContent = "";
+    const ready = importItems.filter(i => i.ok), skipped = importItems.filter(i => !i.ok);
+    const withInv = ready.filter(i => i.inv.length).length, newClients = [...new Set(ready.filter(i => i.isNew).map(i => i.data.customer))];
+    const sum = el("div", "imp-sum");
+    sum.append(el("span", "chip type", ready.length + " ready to import"), el("span", "chip type", withInv + " with an invoicing contact"));
+    if (newClients.length) sum.appendChild(el("span", "chip wc", newClients.length + " new client name" + (newClients.length === 1 ? "" : "s")));
+    if (skipped.length) sum.appendChild(el("span", "chip wc", skipped.length + " skipped"));
+    out.appendChild(sum);
+    if (newClients.length) out.appendChild(el("p", "notice", "Not matched to an existing client (no invoicing contact can be added; check the spelling): " + newClients.slice(0, 12).join("; ") + (newClients.length > 12 ? "…" : "")));
+
+    const tbl = el("table", "imp-table"); const hr = el("tr");
+    ["Job #", "Project", "Customer", "Invoicing contact"].forEach(h => hr.appendChild(el("th", "", h)));
+    const th = el("thead"); th.appendChild(hr); tbl.appendChild(th);
+    const tb = el("tbody");
+    importItems.slice(0, 60).forEach(i => {
+      const tr = el("tr"); if (!i.ok) tr.className = "skip";
+      tr.appendChild(el("td", "", i.data.job || "—")); tr.appendChild(el("td", "", i.data.name || "—")); tr.appendChild(el("td", "", i.data.customer || "—"));
+      tr.appendChild(el("td", "", !i.ok ? "Skipped: " + i.reason : i.inv.length ? i.inv[0].name + (i.inv[0].email ? " · " + i.inv[0].email : "") : i.isNew ? "— (new client)" : "— (none set yet)"));
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb); out.appendChild(tbl);
+    if (importItems.length > 60) out.appendChild(el("p", "notice", "Showing the first 60 of " + importItems.length + " rows."));
+
+    const go = el("button", "btn primary", "Import " + ready.length + " project" + (ready.length === 1 ? "" : "s")); go.type = "button"; go.disabled = !ready.length;
+    go.style.marginTop = "14px";
+    const err = el("p", "err"); err.hidden = true;
+    go.addEventListener("click", async () => {
+      go.disabled = true; err.hidden = true;
+      const now = new Date().toISOString();
+      const recs = ready.map(i => ({ data: Object.assign({}, i.data, { contacts: i.inv, updatedAt: now }) }));
+      try {
+        for (let k = 0; k < recs.length; k += 200) { const r = await sb.from(T).insert(recs.slice(k, k + 200)); if (r.error) throw r.error; }
+        await load(); showList();
+      } catch (ex) { err.textContent = "Import failed part-way. Reload to see what was added, then re-upload: projects that already exist are skipped automatically."; err.hidden = false; go.disabled = false; await load().catch(() => {}); }
+    });
+    out.append(go, err);
   }
 
   // ---------- Edit client (rename, own contacts, remove) ----------
@@ -385,7 +537,7 @@
     const newKey = name.toLowerCase();
     if (newKey !== old.key && clientsData().some(g => g.key === newKey)) { kErr("Another client is already named “" + name + "”."); return; }
     const contacts = clientContacts
-      .map(c => ({ type: (c.type || "").trim(), name: (c.name || "").trim(), email: (c.email || "").trim(), phone: (c.phone || "").trim() }))
+      .map(c => { const o = { type: (c.type || "").trim(), name: (c.name || "").trim(), email: (c.email || "").trim(), phone: (c.phone || "").trim() }; if (c.invoicing) o.invoicing = true; return o; })
       .filter(c => c.type || c.name || c.email || c.phone);
     for (let i = 0; i < contacts.length; i++) {
       const c = contacts[i], n = "Contact " + (i + 1);
@@ -431,7 +583,7 @@
 
   // Contact-row editor shared by the project form (ids c0-…) and the client form (ids k0-…).
   const projCtx = { wrap: null, get list() { return formContacts; }, pre: "c", min1: true, cust: () => $("f-cust").value, render: () => renderEditor(projCtx) };
-  const clientCtx = { wrap: null, get list() { return clientContacts; }, pre: "k", min1: false, cust: () => $("k-name").value, render: () => renderEditor(clientCtx) };
+  const clientCtx = { wrap: null, get list() { return clientContacts; }, pre: "k", min1: false, invoicing: true, cust: () => $("k-name").value, render: () => renderEditor(clientCtx) };
   const renderContactRows = () => renderEditor(projCtx);
 
   function attachSuggest(inp, c, ctx) {
@@ -500,6 +652,12 @@
       rm.setAttribute("aria-label", "Remove contact " + (i + 1));
       rm.addEventListener("click", () => { ctx.list.splice(i, 1); ctx.render(); });
       row.appendChild(rm);
+      if (ctx.invoicing) {
+        const lab = el("label", "invrow"); const cb = el("input"); cb.type = "checkbox"; cb.checked = !!c.invoicing; cb.id = P + "-inv";
+        lab.append(cb, document.createTextNode(" Invoicing contact: added automatically to this client's new and imported projects"));
+        cb.addEventListener("change", () => { ctx.list.forEach(x => { x.invoicing = false; }); c.invoicing = cb.checked; ctx.render(); });
+        row.appendChild(lab);
+      }
       wrap.appendChild(row);
     });
   }
@@ -537,13 +695,7 @@
     const untouched = formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type;
     let filled = false;
     if (!editingId && untouched) {
-      // The client's own Accounts Payable contact(s) win; otherwise use the one from its most recent project that has one.
-      const rec = clients.find(r => (r.name || "").trim().toLowerCase() === cust.toLowerCase());
-      let ap = rec ? rec.contacts.filter(c => c.type === "Accounts Payable") : [];
-      if (!ap.length) {
-        const prev = projects.filter(p => sameCustomer(p, cust) && contactsOf(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
-        if (prev) ap = contactsOf(prev).filter(c => c.type === "Accounts Payable");
-      }
+      const ap = invoicingContactsFor(cust);
       if (ap.length) { formContacts = ap.map(x => Object.assign(blank(), x)).concat([blank()]); filled = true; }
     }
     if (filled) renderContactRows();   // only rebuild the rows when something was filled in, so a click into a contact field is never lost
