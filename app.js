@@ -92,6 +92,7 @@
     const seen = new Map();
     const consider = (x, company) => {
       if (!x.name || !(x.name + " " + x.email).toLowerCase().includes(q)) return;
+      if (cust.trim() && !sameCustomer({ customer: company }, cust)) return;   // a customer is chosen: only that company's people
       const k = keyOf(x); if (used.has(k)) return;
       const ck = k + "@" + (company || "").trim().toLowerCase();
       if (!seen.has(ck)) seen.set(ck, Object.assign({}, x, { customer: (company || "").trim() }));
