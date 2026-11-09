@@ -116,7 +116,7 @@
     });
 
     const q = view.q.trim().toLowerCase();
-    const hay = p => [p.job, p.name, p.customer, p.town, p.notes].concat(contactsOf(p).map(c => [c.name, c.email, c.phone, c.type].join(" "))).join(" ").toLowerCase();
+    const hay = p => [p.job, p.estimateNo, p.bidNo, p.name, p.customer, p.town, p.notes].concat(contactsOf(p).map(c => [c.name, c.email, c.phone, c.type].join(" "))).join(" ").toLowerCase();
     const sortVal = (p, k) => k === "location" ? LOC[p.location] : k === "contacts" ? ((contactsOf(p)[0] || {}).name || "") : (p[k] || "");
     const list = projects.filter(p =>
       (view.loc === "all" || p.location === view.loc) &&
@@ -133,6 +133,8 @@
       const j = cell("c-job"); j.appendChild(el("span", "job", p.job || "—"));
       const n = cell("c-name"); n.appendChild(el("span", "pname", p.name || "Untitled"));
       if (p.town) n.appendChild(el("span", "note", p.town));
+      const nums = [p.estimateNo && "Est. " + p.estimateNo, p.bidNo && "Bid " + p.bidNo].filter(Boolean).join(" · ");
+      if (nums) n.appendChild(el("span", "note", nums));
       cell("c-cust").textContent = p.customer || "—";
       const cc = cell("c-contacts"); const cs = ordered(p);
       const lines = cs.some(isPM) ? cs.slice() : [null].concat(cs);   // null = "no Project Manager" notice
@@ -209,7 +211,7 @@
 
     const kv = el("dl", "kv");
     const add = (k, v) => { const d = el("div"); d.appendChild(el("dt", "", k)); d.appendChild(el("dd", "", v || "—")); kv.appendChild(d); };
-    add("Customer", p.customer); add("Town / site", p.town); add("Notes", p.notes);
+    add("Customer", p.customer); add("Estimate #", p.estimateNo); add("Bid #", p.bidNo); add("Town / site", p.town); add("Notes", p.notes);
     box.appendChild(kv);
 
     const cs = ordered(p);
@@ -425,7 +427,7 @@
   });
 
   // ---------- Edit / add form ----------
-  const F = { job: "f-job", name: "f-name", customer: "f-cust", location: "f-loc", town: "f-town", status: "f-status", notes: "f-notes" };
+  const F = { job: "f-job", name: "f-name", customer: "f-cust", location: "f-loc", town: "f-town", status: "f-status", notes: "f-notes", estimateNo: "f-est", bidNo: "f-bid" };
 
   // Contact-row editor shared by the project form (ids c0-…) and the client form (ids k0-…).
   const projCtx = { wrap: null, get list() { return formContacts; }, pre: "c", min1: true, cust: () => $("f-cust").value, render: () => renderEditor(projCtx) };
@@ -542,7 +544,7 @@
         filled = true;
       }
     }
-    renderContactRows();
+    if (filled) renderContactRows();   // only rebuild the rows when something was filled in, so a click into a contact field is never lost
     $("autofillNote").hidden = !filled;
   }
   $("f-cust").addEventListener("change", applyAutofill);
