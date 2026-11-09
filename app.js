@@ -331,7 +331,8 @@
         const n = el("span"); n.appendChild(el("strong", "", x.name || x.email));
         if (x.projects.length) n.appendChild(el("small", "block", "On " + x.projects.map(p => p.job).join(", ")));
         li.appendChild(n);
-        const roles = el("span", "roles"); [...x.types].forEach(t => roles.appendChild(el("span", "chip type", t))); li.appendChild(roles);
+        const roles = el("span", "roles"); [...x.types].forEach(t => roles.appendChild(el("span", "chip type", t)));
+        if (!x.types.size) roles.appendChild(el("small", "", "No role yet")); li.appendChild(roles);
         const m = el("span", "cmail");
         if (x.email) { const link = el("a", "", x.email); link.href = "mailto:" + x.email; link.style.overflowWrap = "anywhere"; m.append(link, copyButton(x.email)); } else m.textContent = "—";
         li.appendChild(m);
@@ -389,7 +390,6 @@
     for (let i = 0; i < contacts.length; i++) {
       const c = contacts[i], n = "Contact " + (i + 1);
       if (!c.name) { kErr(n + " needs a name."); return; }
-      if (!c.type) { kErr(n + ": pick what kind of contact this is."); return; }
       if (c.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c.email)) { kErr(n + " email doesn't look right."); return; }
     }
     contacts.sort((x, y) => (isPM(y) ? 1 : 0) - (isPM(x) ? 1 : 0));
@@ -537,12 +537,14 @@
     const untouched = formContacts.length === 1 && !formContacts[0].name && !formContacts[0].email && !formContacts[0].phone && !formContacts[0].type;
     let filled = false;
     if (!editingId && untouched) {
-      const prev = projects.filter(p => sameCustomer(p, cust) && contactsOf(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
-      if (prev) {
-        const ap = contactsOf(prev).filter(c => c.type === "Accounts Payable").map(x => Object.assign(blank(), x));
-        formContacts = ap.concat([blank()]);
-        filled = true;
+      // The client's own Accounts Payable contact(s) win; otherwise use the one from its most recent project that has one.
+      const rec = clients.find(r => (r.name || "").trim().toLowerCase() === cust.toLowerCase());
+      let ap = rec ? rec.contacts.filter(c => c.type === "Accounts Payable") : [];
+      if (!ap.length) {
+        const prev = projects.filter(p => sameCustomer(p, cust) && contactsOf(p).some(c => c.type === "Accounts Payable")).sort(recentFirst)[0];
+        if (prev) ap = contactsOf(prev).filter(c => c.type === "Accounts Payable");
       }
+      if (ap.length) { formContacts = ap.map(x => Object.assign(blank(), x)).concat([blank()]); filled = true; }
     }
     if (filled) renderContactRows();   // only rebuild the rows when something was filled in, so a click into a contact field is never lost
     $("autofillNote").hidden = !filled;
